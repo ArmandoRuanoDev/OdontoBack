@@ -1,0 +1,241 @@
+CREATE TABLE usuario."tRolUsuario" (
+    id_rol INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_rol VARCHAR(40) NOT NULL,
+    descripcion_rol VARCHAR(200) NULL,
+    estatus_rol BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE usuario."tUsuario" (
+    id_usuario INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_usuario VARCHAR(60) NOT NULL,
+    apellido_paterno VARCHAR(60),
+    apellido_materno VARCHAR(60),
+    correo_electronico VARCHAR(150) UNIQUE NOT NULL,
+    correo_verificado BOOLEAN DEFAULT FALSE,
+    numero_telefono VARCHAR(13) NOT NULL,
+    foto_perfil TEXT,
+    fecha_nacimiento DATE,
+    sexo_usuario CHAR(1) CHECK (sexo_usuario IN ('M','F')),
+    contrasena_hash TEXT NOT NULL,
+    acepta_aviso_privacidad BOOLEAN DEFAULT FALSE,
+    fecha_aceptacion_aviso TIMESTAMP,
+    acepta_terminos_condiciones BOOLEAN DEFAULT FALSE,
+    fecha_aceptacion_terminos TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP NULL,
+    id_rol_usuario INT REFERENCES usuario."tRolUsuario"(id_rol)
+);
+
+CREATE TABLE usuario."tAcceso" (
+    id_acceso INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT UNIQUE NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
+    ultimo_acceso TIMESTAMP,
+    ultimo_intento_fallido TIMESTAMP,
+    intentos_fallidos INT DEFAULT 0 CHECK (intentos_fallidos >= 0),
+    bloqueado_hasta TIMESTAMP, -- NULL = no bloqueado, fecha futura = bloqueado hasta ese momento
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE usuario."lAcceso" (
+    id_log_acceso INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE SET NULL,
+    mensaje_error VARCHAR(500),
+    detalle_error TEXT,
+    clase VARCHAR(100),
+    metodo VARCHAR(100),
+    ip_address INET,
+    user_agent TEXT,
+    fecha_error_log TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE usuario."tSesion" (
+    id_sesion UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_usuario INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
+    refresh_token_hash TEXT NOT NULL,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP NOT NULL,
+    revoked BOOLEAN DEFAULT FALSE,
+    revoked_at TIMESTAMP
+);
+
+CREATE TABLE usuario."tTipoSuscripcion" (
+    id_tipo_suscripcion INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    descripcion TEXT,
+    duracion_dias INT,
+    precio DECIMAL(10,2) NOT NULL,
+    moneda CHAR(3) DEFAULT 'MXN',
+    activo BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE usuario."tUsuarioSuscripcion" (
+    id_suscripcion INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
+    id_tipo_suscripcion INT NOT NULL REFERENCES usuario."tTipoSuscripcion"(id_tipo_suscripcion),
+    fecha_inicio TIMESTAMP DEFAULT NOW(),
+    fecha_fin TIMESTAMP,
+    estado VARCHAR(20) DEFAULT 'activa' CHECK (estado IN ('activa', 'cancelada', 'expirada', 'pendiente')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP NULL
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_usuario_telefono ON usuario."tUsuario" (numero_telefono);
+CREATE INDEX IF NOT EXISTS idx_usuario_correo ON usuario."tUsuario" (correo_electronico);
+CREATE INDEX IF NOT EXISTS idx_acceso_id_usuario ON usuario."tAcceso" (id_usuario);
+
+CREATE INDEX idx_sesion_usuario ON usuario."tSesion" (id_usuario);
+CREATE INDEX idx_sesion_expires ON usuario."tSesion" (expires_at);
+CREATE INDEX idx_sesion_token_hash ON usuario."tSesion" (refresh_token_hash);
+CREATE INDEX idx_sesion_revoked ON usuario."tSesion" (revoked) WHERE revoked = FALSE;
+CREATE INDEX idx_acceso_bloqueo ON usuario."tAcceso" (bloqueado_hasta) WHERE bloqueado_hasta IS NOT NULL;
+
+CREATE INDEX idx_log_fecha ON usuario."lAcceso" (fecha_error_log);
+CREATE INDEX idx_log_usuario ON usuario."lAcceso" (id_usuario);
+CREATE INDEX idx_log_ip ON usuario."lAcceso" (ip_address);
+
+CREATE INDEX idx_usuario_suscripcion ON usuario."tUsuarioSuscripcion" (id_usuario);
+CREATE INDEX idx_suscripcion_fecha_fin ON usuario."tUsuarioSuscripcion" (fecha_fin) WHERE estado = 'activa';
+
+-- Inserts iniciales
+INSERT INTO usuario."tRolUsuario" (nombre_rol, descripcion_rol) 
+VALUES ('Administrador', 'Acceso a todo el sistema'), ('Doctor', 'Atención a pacientes');
+
+INSERT INTO usuario."tTipoSuscripcion" 
+(nombre, descripcion, duracion_dias, precio, moneda, activo)
+VALUES 
+('Mensual', 'Suscripción mensual renovable', 30, 299.00, 'MXN', true),
+('Anual', 'Suscripción anual con descuento', 365, 2990.00, 'MXN', true),
+('Prueba', 'Periodo de prueba gratuito (7 días)', 7, 0.00, 'MXN', true),
+('De por vida', 'Licencia perpetua sin expiración', NULL, 4999.00, 'MXN', true),
+('Inicio', 'Ninguna suscripción, solo registro', NULL, 0.00, 'MXN', true);
+
+-- Funciones necesarias
+-- Funcion de registro
+CREATE OR REPLACE FUNCTION usuario.registrar_usuario(
+    _nombre_usuario VARCHAR,
+    _apellido_paterno VARCHAR,
+    _apellido_materno VARCHAR,
+    _correo_electronico VARCHAR,
+    _numero_telefono VARCHAR,
+    _fecha_nacimiento DATE,
+    _sexo_usuario CHAR,
+    _contrasena_hash TEXT,
+    _id_rol_usuario INT,
+    _acepta_aviso_privacidad BOOLEAN,
+    _acepta_terminos_condiciones BOOLEAN
+)
+RETURNS JSON AS $$
+DECLARE
+    nuevo_id INT;
+    resultado JSON;
+    fecha_ahora TIMESTAMP := NOW();
+    suscripcion_id INT;
+    duracion INT;
+BEGIN
+    IF _acepta_aviso_privacidad IS FALSE OR _acepta_terminos_condiciones IS FALSE THEN
+        RAISE EXCEPTION 'Debe aceptar el aviso de privacidad y los términos y condiciones para registrarse';
+    END IF;
+
+    -- Insertar en tUsuario
+    INSERT INTO usuario."tUsuario" (
+        nombre_usuario, apellido_paterno, apellido_materno,
+        correo_electronico, numero_telefono, fecha_nacimiento,
+        sexo_usuario, contrasena_hash, id_rol_usuario,
+        acepta_aviso_privacidad, fecha_aceptacion_aviso,
+        acepta_terminos_condiciones, fecha_aceptacion_terminos
+    ) VALUES (
+        _nombre_usuario, _apellido_paterno, _apellido_materno,
+        _correo_electronico, _numero_telefono, _fecha_nacimiento,
+        _sexo_usuario, _contrasena_hash, _id_rol_usuario,
+        _acepta_aviso_privacidad, fecha_ahora,
+        _acepta_terminos_condiciones, fecha_ahora
+    )
+    RETURNING id_usuario INTO nuevo_id;
+
+    -- Insertar en tAcceso
+    INSERT INTO usuario."tAcceso" (id_usuario)
+    VALUES (nuevo_id);
+
+    -- Obtener datos del tipo de suscripción 'Inicio'
+    SELECT id_tipo_suscripcion, duracion_dias
+    INTO suscripcion_id, duracion
+    FROM usuario."tTipoSuscripcion"
+    WHERE nombre = 'Inicio' AND activo = true;
+
+    -- Insertar en tUsuarioSuscripcion con fecha_fin según duración (NULL si duracion es NULL)
+    INSERT INTO usuario."tUsuarioSuscripcion" (
+        id_usuario, id_tipo_suscripcion, fecha_inicio, fecha_fin, estado
+    ) VALUES (
+        nuevo_id, suscripcion_id, fecha_ahora,
+        CASE WHEN duracion IS NOT NULL THEN fecha_ahora + (duracion || ' days')::INTERVAL ELSE NULL END,
+        'activa'
+    );
+
+    -- Devolver datos del nuevo usuario
+    SELECT json_build_object(
+        'id', nuevo_id,
+        'nombre_usuario', _nombre_usuario,
+        'correo_electronico', _correo_electronico
+    ) INTO resultado;
+
+    RETURN resultado;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Funcion para suscripciones expiradas
+CREATE OR REPLACE FUNCTION usuario.actualizar_suscripciones_expiradas()
+RETURNS INTEGER AS $$
+DECLARE
+    actualizadas_primera INTEGER;
+    actualizadas_segunda INTEGER;
+    total INTEGER;
+BEGIN
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET estado = 'pendiente',
+        fecha_fin = NOW() + INTERVAL '2 days',
+        updated_at = NOW()
+    WHERE estado = 'activa'
+      AND fecha_fin IS NOT NULL
+      AND fecha_fin < NOW();
+    
+    GET DIAGNOSTICS actualizadas_primera = ROW_COUNT;
+    
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET estado = 'expirada', updated_at = NOW()
+    WHERE estado = 'pendiente'
+      AND updated_at < NOW() - INTERVAL '2 days';
+    
+    GET DIAGNOSTICS actualizadas_segunda = ROW_COUNT;
+    
+    total := actualizadas_primera + actualizadas_segunda;
+    
+    RETURN total;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Funcion para renovar suscripciones
+CREATE OR REPLACE FUNCTION usuario.reactivar_suscripcion(
+    _id_suscripcion INT,
+    _nuevos_dias INT  -- días adicionales a partir de hoy
+)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET estado = 'activa',
+        fecha_inicio = NOW(),
+        fecha_fin = NOW() + (_nuevos_dias || ' days')::INTERVAL,
+        updated_at = NOW()
+    WHERE id_suscripcion = _id_suscripcion
+      AND estado IN ('pendiente', 'expirada');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Permisos de acceso
+GRANT USAGE ON SCHEMA usuario TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA usuario TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA usuario
+GRANT ALL ON TABLES TO anon, authenticated, service_role;
