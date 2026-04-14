@@ -6,10 +6,12 @@ export async function logError(
     error: any,
     clase: string,
     metodo: string,
+    schema: string,
+    table: string,
     id_usuario?: number
 ) {
     try {
-        await supabase.schema('usuario').from('lAcceso').insert({
+        await supabase.schema(schema).from(table).insert({
             id_usuario: id_usuario || null,
             mensaje_error: error.message || 'Error desconocido',
             detalle_error: JSON.stringify(error, Object.getOwnPropertyNames(error)),

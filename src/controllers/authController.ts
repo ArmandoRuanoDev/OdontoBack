@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { RegisterUser } from "../interfaces/authInterface";
 import { logError } from "../util/logError";
 import { generateAccessToken, generateRefreshToken, hashRefreshToken, getRefreshTokenExpiry, TokenPayload } from "../util/tokenUtil";
+import { sendWelcomeEmail } from '../services/emailService';
 
 class AuthController {
 
@@ -82,7 +83,7 @@ class AuthController {
                 const saltRounds = process.env.NODE_ENV === 'production' ? 12 : 10;
                 contrasena_hash = await bcrypt.hash(contrasena, saltRounds);
             } catch (hashError) {
-                await logError(req, hashError, 'AuthController', 'register');
+                await logError(req, hashError, 'AuthController', 'register', 'usuario', 'lAcceso');
                 return res.status(500).json({ message: "Error interno al procesar la contraseña" });
             }
 
@@ -105,7 +106,7 @@ class AuthController {
             });
 
             if (error) {
-                await logError(req, error, 'AuthController', 'register');
+                await logError(req, error, 'AuthController', 'register', 'usuario', 'lAcceso');
                 
                 if (error.message?.includes('duplicate key')) {
                     return res.status(409).json({ message: "El correo o teléfono ya está registrado" });
@@ -125,7 +126,7 @@ class AuthController {
                 .single();
 
             if (roleError) {
-                await logError(req, roleError, 'AuthController', 'register', userId);
+                await logError(req, roleError, 'AuthController', 'register', 'usuario', 'lAcceso', userId);
             }
             const id_rol = userWithRole?.id_rol_usuario || rolFinal;
 
@@ -136,7 +137,7 @@ class AuthController {
                 .eq('id_usuario', userId);
 
             if (updateAccesoError) {
-                await logError(req, updateAccesoError, 'AuthController', 'register_update_acceso', userId);
+                await logError(req, updateAccesoError, 'AuthController', 'register_update_acceso', 'usuario', 'lAcceso',userId);
             }
 
             // Preparar payload del token
@@ -167,11 +168,16 @@ class AuthController {
                 });
 
             if (sessionError) {
-                await logError(req, sessionError, 'AuthController', 'register', userId);
+                await logError(req, sessionError, 'AuthController', 'register', 'usuario', 'lAcceso', userId);
                 // Aunque falle la sesión, el usuario ya está creado.
                 // Se responde error para que el cliente reintente (pero el usuario ya existe)
                 return res.status(500).json({ message: "Usuario creado pero error al iniciar sesión automática" });
             }
+
+            sendWelcomeEmail(correo_normalizado, nombre_limpio).catch(err => {
+                console.error('Error al enviar correo de bienvenida:', err);
+                logError(req, err, 'AuthController', 'sendWelcomeEmail', 'usuario', 'lAcceso', userId);
+            });
 
             // Respuesta exitosa con tokens
             res.status(201).json({
@@ -188,7 +194,7 @@ class AuthController {
                 }
             });
         } catch (err: any) {
-            await logError(req, err, 'AuthController', 'register');
+            await logError(req, err, 'AuthController', 'register', 'usuario', 'lAcceso');
             res.status(500).json({ error: "Error en el servidor" });
         }
     }
@@ -211,7 +217,7 @@ class AuthController {
                 .maybeSingle();
 
             if (userError) {
-                await logError(req, userError, 'AuthController', 'login');
+                await logError(req, userError, 'AuthController', 'login', 'usuario', 'lAcceso');
                 return res.status(500).json({ message: "Error al buscar usuario" });
             }
 
@@ -230,7 +236,7 @@ class AuthController {
                 .maybeSingle();
 
             if (accesoError) {
-                await logError(req, accesoError, 'AuthController', 'login', user.id_usuario);
+                await logError(req, accesoError, 'AuthController', 'login', 'usuario', 'lAcceso', user.id_usuario);
             }
 
             // Verificar bloqueo
@@ -263,7 +269,7 @@ class AuthController {
                 .eq('id_usuario', user.id_usuario);
 
             if (updateError) {
-                await logError(req, updateError, 'AuthController', 'login_update_acceso', user.id_usuario);
+                await logError(req, updateError, 'AuthController', 'login_update_acceso', 'usuario', 'lAcceso', user.id_usuario);
             }
 
             // Obtener suscripción activa del usuario
@@ -290,7 +296,7 @@ class AuthController {
                 .maybeSingle();
             
             if (subError) {
-                await logError(req, subError, 'AuthController', 'login_suscripcion', user.id_usuario);
+                await logError(req, subError, 'AuthController', 'login_suscripcion', 'usuario', 'lAcceso', user.id_usuario);
                 // No interrumpimos el login, solo omitimos la suscripción
             }
 
@@ -343,7 +349,7 @@ class AuthController {
                 });
 
             if (sessionError) {
-                await logError(req, sessionError, 'AuthController', 'login', user.id_usuario);
+                await logError(req, sessionError, 'AuthController', 'login', 'usuario', 'lAcceso', user.id_usuario);
                 return res.status(500).json({ message: "Error al iniciar sesión" });
             }
 
@@ -364,7 +370,7 @@ class AuthController {
             });
 
         } catch (err: any) {
-            await logError(req, err, 'AuthController', 'login');
+            await logError(req, err, 'AuthController', 'login', 'usuario', 'lAcceso');
             res.status(500).json({ error: "Error en el servidor" });
         }
     }
@@ -373,7 +379,7 @@ class AuthController {
     private async registrarIntentoFallido(id_usuario: number | null, req: Request) {
         if (!id_usuario) {
             // Si el usuario no existe, solo logueamos el intento (sin asociar a usuario)
-            await logError(req, new Error("Intento de login con usuario inexistente"), 'AuthController', 'login_intento_fallido');
+            await logError(req, new Error("Intento de login con usuario inexistente"), 'AuthController', 'login_intento_fallido', 'usuario', 'lAcceso');
             return;
         }
 
@@ -386,7 +392,7 @@ class AuthController {
             .maybeSingle();
 
         if (fetchError) {
-            await logError(req, fetchError, 'AuthController', 'registrarIntentoFallido', id_usuario);
+            await logError(req, fetchError, 'AuthController', 'registrarIntentoFallido', 'usuario', 'lAcceso', id_usuario);
             return;
         }
 
@@ -405,10 +411,10 @@ class AuthController {
             .eq('id_usuario', id_usuario);
 
         if (updateError) {
-            await logError(req, updateError, 'AuthController', 'registrarIntentoFallido', id_usuario);
+            await logError(req, updateError, 'AuthController', 'registrarIntentoFallido', 'usuario', 'lAcceso', id_usuario);
         }
 
-        await logError(req, new Error(`Intento fallido #${nuevosIntentos}`), 'AuthController', 'login_fallido', id_usuario);
+        await logError(req, new Error(`Intento fallido #${nuevosIntentos}`), 'AuthController', 'login_fallido', 'usuario', 'lAcceso', id_usuario);
     }
 }
 

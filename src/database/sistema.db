@@ -1,0 +1,16 @@
+CREATE TABLE sistema."lSistema" (
+    id_log_sistema INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE SET NULL,
+    mensaje_error VARCHAR(500),
+    detalle_error TEXT,
+    clase VARCHAR(100),
+    metodo VARCHAR(100),
+    ip_address INET,
+    user_agent TEXT,
+    fecha_error_log TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_log_fecha ON sistema."lSistema" (fecha_error_log);
+CREATE INDEX idx_log_usuario ON sistema."lSistema" (id_usuario);
+CREATE INDEX idx_log_ip ON sistema."lSistema" (ip_address);
