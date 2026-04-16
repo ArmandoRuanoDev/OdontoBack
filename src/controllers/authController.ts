@@ -341,6 +341,51 @@ class AuthController {
             const refreshTokenHash = await hashRefreshToken(refreshToken);
             const expiresAt = getRefreshTokenExpiry();
 
+            const MAX_ACTIVE_SESSIONS = 3;
+
+            // Contar sesiones activas actuales
+            const { count, error: countError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .select('*', { count: 'exact', head: true })
+                .eq('id_usuario', user.id_usuario)
+                .eq('revoked', false)
+                .gt('expires_at', ahora.toISOString());
+
+            if (countError) {
+                await logError(req, countError, 'AuthController', 'login_count_sessions', 'usuario', 'lAcceso', user.id_usuario);
+            }
+
+            // Si hay más de MAX_ACTIVE_SESSIONS - 1 (porque vamos a insertar una nueva), revocamos las más antiguas
+            if (count && count >= MAX_ACTIVE_SESSIONS) {
+                const sessionsToRevoke = count - MAX_ACTIVE_SESSIONS + 1;
+
+                // Obtener los IDs de las sesiones más antiguas (ordenadas por created_at ascendente)
+                const { data: oldestSessions, error: fetchError } = await supabase
+                    .schema('usuario')
+                    .from('tSesion')
+                    .select('id_sesion')
+                    .eq('id_usuario', user.id_usuario)
+                    .eq('revoked', false)
+                    .gt('expires_at', ahora.toISOString())
+                    .order('created_at', { ascending: true })
+                    .limit(sessionsToRevoke);
+
+                if (!fetchError && oldestSessions && oldestSessions.length > 0) {
+                    const idsToRevoke = oldestSessions.map(s => s.id_sesion);
+                    const { error: revokeError } = await supabase
+                        .schema('usuario')
+                        .from('tSesion')
+                        .update({ revoked: true, revoked_at: ahora, updated_at: ahora })
+                        .in('id_sesion', idsToRevoke);
+
+                    if (revokeError) {
+                        await logError(req, revokeError, 'AuthController', 'login_revoke_old_sessions', 'usuario', 'lAcceso', user.id_usuario);
+                    }
+                }
+            }
+
+            // Insertar la nueva sesión
             const { error: sessionError } = await supabase
                 .schema('usuario')
                 .from('tSesion')

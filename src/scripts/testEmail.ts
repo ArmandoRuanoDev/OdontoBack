@@ -8,7 +8,7 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
     process.exit(1);
 }
 
-import { sendAccountBlockedAlert, sendAccountUpdateAlert, sendCancellationEmail, sendPasswordChangedConfirmation, sendPasswordResetCode, sendSecurityAlertEmail, sendSubscriptionEmail, sendSubscriptionReceipt, sendTrialReminderEmail, sendWelcomeEmail } from '../services/emailService';
+import { sendAccountBlockedAlert, sendAccountUpdateAlert, sendCancellationEmail, sendPasswordChangedConfirmation, sendPasswordResetCode, sendSecurityAlertEmail, sendSubscriptionEmail, sendSubscriptionReceipt, sendWelcomeEmail } from '../services/emailService';
 import { generateSixDigitCode } from '../util/codeGenerator';
 
 async function testEmail() {

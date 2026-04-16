@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { subscriptionController } from "../controllers/subscriptionController";
 import { authMiddleware } from "../middlewares/authMiddleware";
-import { requirePaidSubscription } from "../middlewares/susbcriptionMiddleware";
+import { requirePaidSubscription } from "../middlewares/subscriptionMiddleware";
 
 class SubscribeRoutes {
     public router: Router = Router();
