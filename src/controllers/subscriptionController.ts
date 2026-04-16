@@ -283,6 +283,76 @@ class SubscriptionController {
             res.status(500).json({ error: "Error en el servidor" });
         }
     }
+
+    public async getCurrentSubscription(req: Request, res: Response) {
+        try {
+            const user = (req as any).user;
+            if (!user || !user.id_usuario) {
+                return res.status(401).json({ message: "No autorizado" });
+            }
+
+            const { data, error } = await supabase
+                .schema('usuario')
+                .from('tUsuarioSuscripcion')
+                .select(`
+                    id_suscripcion,
+                    fecha_inicio,
+                    fecha_fin,
+                    estado,
+                    id_tipo_suscripcion,
+                    tTipoSuscripcion (
+                        id_tipo_suscripcion,
+                        nombre,
+                        descripcion,
+                        duracion_dias,
+                        precio,
+                        moneda
+                    )
+                `)
+                .eq('id_usuario', user.id_usuario)
+                .or('estado.eq.activa,and(estado.eq.cancelada,fecha_fin.gt.now())')
+                .order('fecha_inicio', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (error) {
+                await logError(req, error, 'SubscriptionController', 'getCurrentSubscription', 'usuario', 'lAcceso', user.id_usuario);
+                return res.status(500).json({ message: "Error al obtener la suscripción" });
+            }
+
+            if (!data) {
+                return res.status(200).json({
+                    has_active_subscription: false,
+                    subscription: null,
+                    message: "No tienes una suscripción activa. Acceso limitado."
+                });
+            }
+
+            const tipoSuscripcion = Array.isArray(data.tTipoSuscripcion)
+                ? data.tTipoSuscripcion[0]
+                : data.tTipoSuscripcion;
+
+            const isPaidPlan = tipoSuscripcion!.id_tipo_suscripcion !== 5; // 5 = Inicio
+
+            res.status(200).json({
+                has_active_subscription: isPaidPlan,
+                subscription: {
+                    id: data.id_suscripcion,
+                    plan: tipoSuscripcion!.nombre,
+                    fecha_inicio: data.fecha_inicio,
+                    fecha_fin: data.fecha_fin,
+                    estado: data.estado,
+                    is_cancelled: data.estado === 'cancelada',
+                    days_remaining: data.fecha_fin
+                        ? Math.max(0, Math.ceil((new Date(data.fecha_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                        : null
+                }
+            });
+        } catch (err: any) {
+            await logError(req, err, 'SubscriptionController', 'getCurrentSubscription', 'usuario', 'lAcceso');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
+    }
 }
 
 export const subscriptionController = new SubscriptionController();

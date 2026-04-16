@@ -3,9 +3,10 @@ import supabase from "../database";
 import bcrypt from "bcrypt";
 import { RegisterUser } from "../interfaces/authInterface";
 import { logError } from "../util/logError";
-import { generateAccessToken, generateRefreshToken, hashRefreshToken, getRefreshTokenExpiry, TokenPayload } from "../util/tokenUtil";
-import { sendCodeVerificationEmail, sendSecurityAlertEmail, sendWelcomeEmail, sendSubscriptionEmail, sendSubscriptionReceipt } from '../services/emailService';
+import { generateAccessToken, generateRefreshToken, hashRefreshToken, getRefreshTokenExpiry, TokenPayload, verifyRefreshToken } from "../util/tokenUtil";
+import { sendCodeVerificationEmail, sendSecurityAlertEmail, sendWelcomeEmail, sendPasswordResetCode, sendPasswordChangedConfirmation } from '../services/emailService';
 import { generateSixDigitCode } from "../util/codeGenerator";
+import jwt from 'jsonwebtoken';
 
 class AuthController {
 
@@ -557,11 +558,393 @@ class AuthController {
     }
 
     public async sendChangePasswordCode(req: Request, res: Response) {
-        // Falta implementar aun...
+        try {
+            const { correo } = req.body;
+            if (!correo) {
+                return res.status(400).json({ message: "El correo electrónico es requerido" });
+            }
+
+            // Normalizar correo
+            const correoNormalizado = correo.toLowerCase().trim();
+
+            // Buscar usuario por correo
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_electronico, correo_verificado')
+                .eq('correo_electronico', correoNormalizado)
+                .maybeSingle();
+
+            if (userError) {
+                await logError(req, userError, 'AuthController', 'sendChangePasswordCode', 'usuario', 'tUsuario');
+                return res.status(500).json({ message: "Error al buscar el usuario" });
+            }
+
+            // Por seguridad, no revelamos si el correo existe o no
+            if (!user) {
+                return res.status(200).json({ 
+                    message: "Si el correo está registrado, recibirás un código para restablecer tu contraseña" 
+                }); 
+            }
+
+            // Verificar que el correo esté verificado antes de permitir reset
+            if (!user.correo_verificado) {
+                return res.status(403).json({ 
+                    message: "Debes verificar tu correo electrónico antes de restablecer la contraseña" 
+                });
+            }
+
+            // Eliminar códigos de restablecimiento previos no usados para este usuario
+            await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .delete()
+                .eq('id_usuario', user.id_usuario)
+                .eq('usado', false);
+
+            // Generar código de 6 dígitos
+            const code = generateSixDigitCode();
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+
+            // Guardar en base de datos
+            const { error: insertError } = await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .insert({
+                    id_usuario: user.id_usuario,
+                    codigo: code,
+                    expira: expiresAt,
+                    usado: false
+                });
+
+            if (insertError) {
+                await logError(req, insertError, 'AuthController', 'sendChangePasswordCode', 'sistema', 'tCodigosVerificacion', user.id_usuario);
+                return res.status(500).json({ message: "Error al generar el código de restablecimiento" });
+            }
+
+            // Enviar correo con el código
+            await sendPasswordResetCode(correoNormalizado, user.nombre_usuario, code);
+
+            res.status(200).json({ 
+                message: "Código de restablecimiento enviado. Revisa tu correo." 
+            });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'sendChangePasswordCode', 'sistema', 'tCodigosVerificacion');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
     }
 
     public async verifyPasswordCode(req: Request, res: Response) {
-        // Falta implementar aun...
+        try {
+            const { correo, codigo } = req.body;
+            if (!correo || !codigo) {
+                return res.status(400).json({ message: "Correo y código son obligatorios" });
+            }
+
+            const correoNormalizado = correo.toLowerCase().trim();
+
+            // Buscar usuario
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_electronico')
+                .eq('correo_electronico', correoNormalizado)
+                .maybeSingle();
+
+            if (userError || !user) {
+                return res.status(400).json({ message: "Código inválido o expirado" });
+            }
+
+            // Buscar código válido
+            const { data: codigoReg, error: codeError } = await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .select('id_codigo, expira, usado')
+                .eq('id_usuario', user.id_usuario)
+                .eq('codigo', codigo)
+                .eq('usado', false)
+                .maybeSingle();
+
+            if (codeError || !codigoReg) {
+                return res.status(400).json({ message: "Código inválido o ya usado" });
+            }
+
+            // Verificar expiración
+            if (new Date(codigoReg.expira) < new Date()) {
+                return res.status(400).json({ message: "El código ha expirado. Solicita uno nuevo." });
+            }
+
+            // Marcar código como usado
+            await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .update({ usado: true })
+                .eq('id_codigo', codigoReg.id_codigo);
+
+            // Generar token temporal para el restablecimiento de contraseña (10 min)
+            const resetToken = jwt.sign(
+                { 
+                    user_id: user.id_usuario, 
+                    purpose: 'password_reset',
+                    email: user.correo_electronico 
+                },
+                process.env.JWT_SECRET!,
+                { expiresIn: '10m' }
+            );
+
+            res.status(200).json({
+                message: "Código verificado correctamente",
+                reset_token: resetToken,
+                expires_in: '10 minutos'
+            });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'verifyPasswordCode', 'sistema', 'tCodigosVerificacion');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
+    }
+
+    public async resetPassword(req: Request, res: Response) {
+        try {
+            const { reset_token, nueva_contrasena } = req.body;
+
+            if (!reset_token || !nueva_contrasena) {
+                return res.status(400).json({ message: "Token y nueva contraseña son obligatorios" });
+            }
+
+            // Validar fortaleza de la nueva contraseña
+            if (nueva_contrasena.length < 8) {
+                return res.status(400).json({ message: "La contraseña debe tener al menos 8 caracteres" });
+            }
+
+            // Verificar token JWT
+            let decoded: any;
+            try {
+                decoded = jwt.verify(reset_token, process.env.JWT_SECRET!);
+            } catch (err) {
+                return res.status(401).json({ message: "Token inválido o expirado" });
+            }
+
+            // Validar propósito del token
+            if (decoded.purpose !== 'password_reset') {
+                return res.status(401).json({ message: "Token no válido para restablecimiento de contraseña" });
+            }
+
+            const userId = decoded.user_id;
+            const userEmail = decoded.email;
+
+            // Verificar que el usuario exista
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_electronico')
+                .eq('id_usuario', userId)
+                .maybeSingle();
+
+            if (userError || !user) {
+                await logError(req, userError || new Error('Usuario no encontrado'), 'AuthController', 'resetPassword', 'usuario', 'tUsuario', userId);
+                return res.status(404).json({ message: "Usuario no encontrado" });
+            }
+
+            // Verificar que el correo coincida (doble seguridad)
+            if (user.correo_electronico !== userEmail) {
+                return res.status(401).json({ message: "Token inconsistente" });
+            }
+
+            // Hashear la nueva contraseña
+            let nuevaContrasenaHash: string;
+            try {
+                const saltRounds = process.env.NODE_ENV === 'production' ? 12 : 10;
+                nuevaContrasenaHash = await bcrypt.hash(nueva_contrasena, saltRounds);
+            } catch (hashError) {
+                await logError(req, hashError, 'AuthController', 'resetPassword', 'usuario', 'lAcceso', userId);
+                return res.status(500).json({ message: "Error al procesar la nueva contraseña" });
+            }
+
+            // Actualizar contraseña en base de datos
+            const ahora = new Date();
+            const { error: updateError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .update({
+                    contrasena_hash: nuevaContrasenaHash,
+                    updated_at: ahora
+                })
+                .eq('id_usuario', userId);
+
+            if (updateError) {
+                await logError(req, updateError, 'AuthController', 'resetPassword', 'usuario', 'tUsuario', userId);
+                return res.status(500).json({ message: "Error al actualizar la contraseña" });
+            }
+
+            // Invalidar todas las sesiones activas
+            const { error: revokeError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .update({ revoked: true, updated_at: ahora })
+                .eq('id_usuario', userId)
+                .eq('revoked', false);
+
+            if (revokeError) {
+                await logError(req, revokeError, 'AuthController', 'resetPassword_revoke', 'usuario', 'tSesion', userId);
+            }
+
+            // Registrar el cambio en log de seguridad (opcional)
+            await logError(
+                req,
+                new Error('Contraseña restablecida exitosamente'),
+                'AuthController',
+                'resetPassword_success',
+                'usuario',
+                'tUsuario',
+                userId
+            );
+
+            // Enviar correo de confirmación
+            sendPasswordChangedConfirmation(
+                user.correo_electronico,
+                user.nombre_usuario,
+                ahora
+            ).catch(err => {
+                console.error('Error al enviar correo de confirmación de cambio de contraseña:', err);
+                logError(req, err, 'AuthController', 'sendPasswordChangedConfirmation', 'usuario', 'lAcceso', userId);
+            });
+
+            res.status(200).json({
+                message: "Contraseña actualizada exitosamente. Por seguridad, todas las sesiones han sido cerradas."
+            });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'resetPassword', 'usuario', 'lAcceso');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
+    }
+
+    public async refreshToken(req: Request, res: Response) {
+        try {
+            const { refresh_token } = req.body;
+
+            if (!refresh_token) {
+                return res.status(400).json({ message: "Refresh token es requerido" });
+            }
+
+            // Verificar que el token JWT sea válido
+            let decoded: any;
+            try {
+                decoded = verifyRefreshToken(refresh_token);
+                if (!decoded) {
+                    return res.status(401).json({ message: "Refresh token inválido o expirado" });
+                }
+            } catch (err) {
+                return res.status(401).json({ message: "Refresh token inválido o expirado" });
+            }
+
+            const userId = decoded.id_usuario;
+
+            // Hashear el token recibido para compararlo con el almacenado
+            const tokenHash = await hashRefreshToken(refresh_token);
+
+            // Buscar la sesión activa correspondiente
+            const { data: sesion, error: sessionError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .select('id_sesion, refresh_token_hash, revoked, expires_at')
+                .eq('id_usuario', userId)
+                .eq('refresh_token_hash', tokenHash)
+                .eq('revoked', false)
+                .maybeSingle();
+
+            if (sessionError || !sesion) {
+                await logError(req, sessionError || new Error('Sesión no encontrada'), 'AuthController', 'refreshToken', 'usuario', 'lAcceso', userId);
+                return res.status(401).json({ message: "Refresh token no válido o sesión revocada" });
+            }
+
+            // Verificar que no haya expirado en BD
+            if (new Date(sesion.expires_at) < new Date()) {
+                // Marcar como revocada por expiración
+                await supabase
+                    .schema('usuario')
+                    .from('tSesion')
+                    .update({ revoked: true, updated_at: new Date() })
+                    .eq('id_sesion', sesion.id_sesion);
+                return res.status(401).json({ message: "Refresh token expirado" });
+            }
+
+            // Obtener datos actualizados del usuario (por si cambiaron roles o correo)
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_electronico, id_rol_usuario')
+                .eq('id_usuario', userId)
+                .single();
+
+            if (userError || !user) {
+                await logError(req, userError || new Error('Usuario no encontrado'), 'AuthController', 'refreshToken', 'usuario', 'lAcceso', userId);
+                return res.status(401).json({ message: "Usuario no encontrado" });
+            }
+
+            // Revocar la sesión actual (rotación de refresh token)
+            const ahora = new Date();
+            const { error: revokeError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .update({ revoked: true, revoked_at: ahora, updated_at: ahora })
+                .eq('id_sesion', sesion.id_sesion);
+
+            if (revokeError) {
+                await logError(req, revokeError, 'AuthController', 'refreshToken_revoke', 'usuario', 'lAcceso', userId);
+            }
+
+            // Generar nuevos tokens
+            const tokenPayload: TokenPayload = {
+                id_usuario: user.id_usuario,
+                nombre_usuario: user.nombre_usuario,
+                correo_electronico: user.correo_electronico,
+                id_rol_usuario: user.id_rol_usuario
+            };
+
+            const newAccessToken = generateAccessToken(tokenPayload);
+            const newRefreshToken = generateRefreshToken(tokenPayload);
+            const newRefreshTokenHash = await hashRefreshToken(newRefreshToken);
+            const expiresAt = getRefreshTokenExpiry();
+
+            // Obtener IP y user agent actuales
+            const realIp = (req.headers['x-forwarded-for'] || req.ip || req.socket.remoteAddress) as string;
+            const userAgent = req.headers['user-agent'] || 'Desconocido';
+
+            // Guardar nueva sesión
+            const { error: insertError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .insert({
+                    id_usuario: user.id_usuario,
+                    refresh_token_hash: newRefreshTokenHash,
+                    ip_address: realIp,
+                    user_agent: userAgent,
+                    expires_at: expiresAt,
+                    revoked: false
+                });
+
+            if (insertError) {
+                await logError(req, insertError, 'AuthController', 'refreshToken_insert', 'usuario', 'lAcceso', userId);
+                return res.status(500).json({ message: "Error al crear nueva sesión" });
+            }
+
+            // Responder con nuevos tokens
+            res.status(200).json({
+                message: "Token refrescado exitosamente",
+                tokens: {
+                    access_token: newAccessToken,
+                    refresh_token: newRefreshToken,
+                    expires_in: process.env.JWT_ACCESS_EXPIRES_IN
+                }
+            });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'refreshToken', 'usuario', 'lAcceso');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
     }
 
     // Método auxiliar para registrar intentos fallidos y posible bloqueo

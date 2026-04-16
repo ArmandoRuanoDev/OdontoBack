@@ -15,6 +15,12 @@ const loginLimiter = rateLimit({
     message: "Demasiados intentos de inicio de sesión, intente más tarde"
 });
 
+const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 5,
+    message: "Demasiadas solicitudes de restablecimiento, intente más tarde"
+});
+
 class AuthRoutes {
     public router: Router = Router();
 
@@ -27,6 +33,10 @@ class AuthRoutes {
         this.router.post('/login', loginLimiter, authController.login);
         this.router.post('/send-verification-code', authController.sendVerificationCode);
         this.router.post('/verify-email', authController.verifyEmail);
+        this.router.post('/send-password-reset-code', passwordResetLimiter, authController.sendChangePasswordCode);
+        this.router.post('/verify-password-code', authController.verifyPasswordCode);
+        this.router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
+        this.router.post('/refresh-token', authController.refreshToken);
     }
 }
 

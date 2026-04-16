@@ -75,7 +75,6 @@ async function sendEmail(to: string, subject: string, html: string) {
     }
 }
 
-
 export async function sendWelcomeEmail(to: string, username: string) {
   const subject = '¡Bienvenido a Todonto! Tu consulta dental, ahora en digital 🦷';
 
@@ -841,11 +840,11 @@ export async function sendSubscriptionEmail(
 }
 
 /**
- * Envía un correo de confirmación de cancelación de suscripción
+ * Envía un correo para confirmar la cancelación del plan actual
  * @param to - Correo del usuario
  * @param username - Nombre del usuario
- * @param plan - Nombre del plan cancelado
- * @param endDate - Fecha en que expirará el acceso (si aplica)
+ * @param plan - Nombre del plan de prueba (ej. "Prueba gratuita")
+ * @param endDate - Fecha final del plan
  */
 export async function sendCancellationEmail(
     to: string,
@@ -871,6 +870,9 @@ export async function sendCancellationEmail(
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cancelación de suscripción - Todonto</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
   <style type="text/css">
     body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
@@ -889,6 +891,7 @@ export async function sendCancellationEmail(
 </head>
 <body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
 
+<!-- Preheader oculto -->
 <div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
   Tu suscripción ha sido cancelada. Todavía puedes acceder hasta ${endFormatted}.
 </div>
@@ -910,7 +913,7 @@ export async function sendCancellationEmail(
                     <tr>
                       <td align="center" width="54" height="54"
                         style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
-                        😔
+                        🦷
                       </td>
                     </tr>
                   </table>
@@ -932,7 +935,7 @@ export async function sendCancellationEmail(
               </tr>
             </table>
           </td>
-        </table>
+        </tr>
 
         <!-- ===== BODY ===== -->
         <tr>
@@ -952,7 +955,7 @@ export async function sendCancellationEmail(
               <tr>
                 <td style="padding-bottom:24px;">
                   <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
-                    Lamentamos que hayas decidido cancelar tu suscripción al plan <strong style="color:#185FA5;">${plan}</strong>.
+                    Lamentamos que hayas decidido cancelar tu suscripción al plan <strong style="color:#185FA5;">${plan}</strong>. Tu acceso continuará activo hasta <strong>${endFormatted}</strong>.
                   </p>
                 </td>
               </tr>
@@ -998,8 +1001,12 @@ export async function sendCancellationEmail(
                               </table>
                             </td>
                             <td style="vertical-align:top;">
-                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Plan cancelado</p>
-                              <p style="margin:0;font-size:13px;color:#185FA5;">${plan}</p>
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;">
+                                Plan cancelado
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                ${plan}
+                              </p>
                             </td>
                           </tr>
                         </tr>
@@ -1009,9 +1016,9 @@ export async function sendCancellationEmail(
                 </td>
               </tr>
 
-              <!-- Feature: Acceso hasta -->
+              <!-- Feature: Acceso vigente hasta -->
               <tr>
-                <td style="padding-bottom:10px;">
+                <td style="padding-bottom:20px;">
                   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
                     style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
                     <tr>
@@ -1029,8 +1036,12 @@ export async function sendCancellationEmail(
                               <tr>
                             </td>
                             <td style="vertical-align:top;">
-                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Acceso vigente hasta</p>
-                              <p style="margin:0;font-size:13px;color:#185FA5;">${endFormatted}</p>
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;">
+                                Acceso vigente hasta
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                ${endFormatted}
+                              </p>
                             </td>
                           </tr>
                         </table>
@@ -1042,38 +1053,80 @@ export async function sendCancellationEmail(
 
               <!-- Feedback -->
               <tr>
-                <td style="padding-bottom:20px;">
-                  <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; border-left:3px solid #FF9800;">
-                    <p style="margin:0; font-size:13px; color:#E65100;">
-                      <strong>💬 ¿Fue algo que pudimos mejorar?</strong> 
-                      <a href="${process.env.FRONTEND_URL}/feedback" style="color:#185FA5;">Cuéntanos tu opinión</a> para seguir creciendo.
-                    </p>
-                  </div>
+                <td style="padding-bottom:30px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF3E0;border-radius:10px;border-left:3px solid #FF9800;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#FF9800;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💬
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#E65100;font-family:Arial,Helvetica,sans-serif;">
+                                ¿Fue algo que pudimos mejorar?
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#E65100;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                <a href="${process.env.FRONTEND_URL}/feedback" style="color:#185FA5;text-decoration:underline;">Cuéntanos tu opinión</a> para seguir creciendo.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
 
               <!-- Mensaje de regreso -->
               <tr>
                 <td style="padding-bottom:30px;">
-                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
                     Recuerda que <strong style="color:#185FA5;">siempre serás bienvenido de regreso</strong>. Puedes volver a suscribirte en cualquier momento y recuperar todos los beneficios de Todonto.
                   </p>
                 </td>
               </tr>
 
-              <!-- Botón de volver a suscribirse -->
+              <!-- CTA -->
               <tr>
                 <td align="center" style="padding-bottom:8px;">
+                  <!--[if mso]>
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                    href="${process.env.FRONTEND_URL}/suscripciones" style="height:50px;v-text-anchor:middle;width:220px;" arcsize="20%"
+                    fillcolor="#4CAF50" strokecolor="#4CAF50">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">
+                      Volver a suscribirme &rarr;
+                    </center>
+                  </v:roundrect>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
                   <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                     <tr>
                       <td align="center" style="background-color:#4CAF50;border-radius:10px;">
-                        <a href="${process.env.FRONTEND_URL}/suscripciones" target="_blank"
+                        <a class="cta-btn" href="${process.env.FRONTEND_URL}/suscripciones" target="_blank"
                           style="display:inline-block;background-color:#4CAF50;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
-                          Volver a suscribirme
+                          Volver a suscribirme &rarr;
                         </a>
                       </td>
                     </tr>
                   </table>
+                  <!--<![endif]-->
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:28px;">
+                  <span style="font-size:12px;color:#aaaaaa;font-family:Arial,Helvetica,sans-serif;">
+                    Puedes regresar cuando quieras.
+                  </span>
                 </td>
               </tr>
 
@@ -1103,19 +1156,397 @@ export async function sendCancellationEmail(
                           <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
                             soporte@todonto.com
                           </a>
-                          — te responderemos en menos de 24 horas.
+                          — te responderemos en menos de 24 horas con gusto.
                         </p>
+                      </td>
+                    </tr>
+                  <tr>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto &middot; Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Si no solicitaste esta cancelación, contacta a soporte.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </table>
+</table>
+
+</body>
+</html>`;
+
+    await sendEmail(to, subject, html);
+}
+
+/**
+ * Envía un recordatorio de que el periodo de prueba está por terminar
+ * @param to - Correo del usuario
+ * @param username - Nombre del usuario
+ * @param planName - Nombre del plan de prueba (ej. "Prueba de 7 días")
+ * @param trialEndDate - Fecha exacta en que termina la prueba
+ * @param priceToCharge - Precio que se cobrará al renovar (ej. 399)
+ * @param currency - Moneda (ej. "MXN")
+ * @param last4 - Últimos 4 dígitos de la tarjeta registrada (opcional)
+ */
+export async function sendTrialEndingReminderEmail(
+    to: string,
+    username: string,
+    planName: string,
+    trialEndDate: Date,
+    priceToCharge: number,
+    currency: string,
+    last4?: string
+) {
+    const subject = `⚠️ Tu prueba de Todonto termina mañana - Acción requerida`;
+
+    const formatDate = (date: Date) => {
+        return date.toLocaleDateString('es-MX', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    };
+
+    const endFormatted = formatDate(trialEndDate);
+    const priceFormatted = new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 2
+    }).format(priceToCharge);
+
+    const paymentMethodText = last4 
+        ? `Se realizará un cargo de <strong>${priceFormatted}</strong> a tu tarjeta terminada en <strong>**** **** **** ${last4}</strong>.`
+        : `Se realizará un cargo de <strong>${priceFormatted}</strong> a tu método de pago registrado.`;
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tu prueba termina mañana - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu periodo de prueba gratuito en Todonto finaliza mañana. Cancela antes para evitar el cargo automático.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Recordatorio de fin de prueba
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Tu periodo de prueba gratuito finaliza <strong>mañana, ${endFormatted}</strong>.
+                    Te recordamos que, al término de la prueba, tu suscripción se renovará automáticamente al plan mensual.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles de tu cuenta
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Plan actual (prueba) -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📋
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Plan actual</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${planName}</p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
                 </td>
               </tr>
 
+              <!-- Fecha de fin de prueba -->
               <tr>
-                <td style="padding-top:12px;">
-                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
-                    Si no solicitaste esta cancelación, por favor contacta a soporte inmediatamente.
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    ⏳
+                                  </td>
+                                <tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Fecha de expiración de la prueba</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${endFormatted}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Próximo cargo -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💳
+                                  </td>
+                                <tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Próximo cargo</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${priceFormatted} (mensual)</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- ADVERTENCIA PRINCIPAL -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFF3E0; padding:18px 20px; border-radius:10px; border-left:5px solid #E65100;">
+                    <p style="margin:0 0 8px; font-size:15px; font-weight:bold; color:#E65100;">
+                      ⚠️ Acción requerida antes de mañana
+                    </p>
+                    <p style="margin:0; font-size:14px; color:#555; line-height:1.6;">
+                      ${paymentMethodText}<br/>
+                      <strong>Este cargo se procesará automáticamente al finalizar el ${endFormatted}.</strong>
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Opciones de cancelación -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#F9F9F9; padding:16px 20px; border-radius:8px; border:1px solid #E0E0E0;">
+                    <p style="margin:0 0 8px; font-size:14px; color:#0C447C; font-weight:bold;">
+                      ¿No deseas continuar?
+                    </p>
+                    <p style="margin:0 0 12px; font-size:13px; color:#555;">
+                      Puedes cancelar tu suscripción en cualquier momento desde tu perfil y no se realizará ningún cargo.
+                    </p>
+                    <p style="margin:0;">
+                      <a href="${process.env.FRONTEND_URL}/perfil/cancelar-suscripcion" style="color:#185FA5; font-weight:bold; text-decoration:underline;">
+                        Cancelar suscripción →
+                      </a>
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Información legal adicional -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <p style="margin:0; font-size:12px; color:#777; line-height:1.5;">
+                    Al mantener activa tu suscripción, aceptas nuestros 
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    y el cobro recurrente mensual. Recibirás un comprobante por cada cargo realizado.
                   </p>
+                </td>
+              </tr>
+
+              <!-- CTA Botón principal -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                        <a href="${process.env.FRONTEND_URL}/dashboard" target="_blank"
+                          style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
+                          Administrar mi cuenta &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          Si tienes dudas sobre tu facturación, escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
 
@@ -1145,83 +1576,21 @@ export async function sendCancellationEmail(
               <tr>
                 <td align="center">
                   <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
-                    Este mensaje fue enviado a ${to}.
+                    Este es un recordatorio automático. Para cancelar, accede a tu perfil.
                   </span>
                 </td>
               </tr>
             </table>
           </td>
-        </table>
+        </tr>
 
       </table>
     </td>
-  </td>
+  </tr>
 </table>
 </body>
 </html>`;
 
-    await sendEmail(to, subject, html);
-}
-
-/**
- * Envía un correo de recordatorio de que la prueba está por expirar (1 día restante)
- * @param to - Correo del usuario
- * @param username - Nombre del usuario
- * @param planName - Nombre del plan de prueba (ej. "Prueba gratuita")
- * @param expirationDate - Fecha de expiración
- * @param subscribeLink - Enlace para suscribirse al plan completo
- * @param cancelLink - Enlace para cancelar la prueba (opcional, pero recomendado)
- */
-export async function sendTrialReminderEmail(
-    to: string,
-    username: string,
-    planName: string,
-    expirationDate: Date,
-    subscribeLink: string,
-    cancelLink?: string
-) {
-    const subject = '⏰ Tu prueba gratuita en Todonto termina mañana';
-    
-    const formatDate = (date: Date) => {
-        return date.toLocaleDateString('es-MX', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
-    
-    const expirationFormatted = formatDate(expirationDate);
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #FF9800; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Tu periodo de prueba del plan <strong>${planName}</strong> termina <strong>mañana (${expirationFormatted})</strong>.</p>
-                <p>Para no perder el acceso a las funciones avanzadas de Todonto, te invitamos a suscribirte a uno de nuestros planes.</p>
-                
-                <div style="background-color: #FFF3E0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0;"><strong>🎁 Beneficios al suscribirte:</strong></p>
-                    <ul>
-                        <li>Acceso ilimitado a todas las herramientas</li>
-                        <li>Soporte prioritario</li>
-                        <li>Recordatorios personalizados</li>
-                    </ul>
-                </div>
-                
-                <a href="${subscribeLink}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 10px 10px 0;">Suscribirme ahora</a>
-                ${cancelLink ? `<a href="${cancelLink}" style="display: inline-block; background-color: #f44336; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 0;">Cancelar prueba</a>` : ''}
-                
-                <p style="margin-top: 20px;">Si decides no continuar, tu cuenta volverá al plan gratuito básico, pero siempre puedes volver a activar tus beneficios en cualquier momento.</p>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si ya realizaste tu suscripción, ignora este mensaje.</p>
-            </div>
-        </div>
-    `;
-    
     await sendEmail(to, subject, html);
 }
 
@@ -1477,25 +1846,288 @@ export async function sendCodeVerificationEmail(to: string, code: string, userna
  * @param code - Código de 6 dígitos
  */
 export async function sendPasswordResetCode(to: string, username: string, code: string) {
-    const subject = 'Código para restablecer tu contraseña - Todonto';
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #2196F3; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Recibimos una solicitud para restablecer tu contraseña. Utiliza el siguiente código de verificación:</p>
-                <div style="background-color: #e3f2fd; padding: 20px; text-align: center; font-size: 32px; letter-spacing: 5px; font-weight: bold; border-radius: 8px; margin: 20px 0;">
-                    ${code}
-                </div>
-                <p>Este código expira en 10 minutos.</p>
-                <p>Si no solicitaste el cambio de contraseña, puedes ignorar este correo.</p>
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Equipo de Todonto</p>
-            </div>
-        </div>
-    `;
+    const subject = '🔐 Código para restablecer tu contraseña - Todonto';
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restablecer contraseña - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .code-box       { font-size: 36px !important; letter-spacing: 8px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Usa el código de 6 dígitos para restablecer tu contraseña. Válido por 10 minutos.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Recuperación de contraseña
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong style="color:#185FA5;">Todonto</strong>.
+                    Para continuar, utiliza el siguiente código de verificación de 6 dígitos:
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Código de verificación destacado -->
+              <tr>
+                <td align="center" style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                    <tr>
+                      <td align="center" style="background-color:#E6F1FB; padding:28px 40px; border-radius:16px; border:2px dashed #185FA5;">
+                        <span style="font-size:12px; color:#185FA5; letter-spacing:1.5px; text-transform:uppercase; display:block; margin-bottom:12px; font-weight:bold;">
+                          Tu código de verificación
+                        </span>
+                        <span class="code-box" style="font-size:48px; font-weight:bold; color:#0C447C; letter-spacing:12px; font-family:'Courier New', monospace;">
+                          ${code}
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Información de expiración y uso -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; border-left:4px solid #E65100;">
+                    <p style="margin:0; font-size:13px; color:#E65100;">
+                      <strong>⏳ Importante:</strong> Este código es válido por <strong>10 minutos</strong>. Si no lo utilizas en ese tiempo, deberás solicitar uno nuevo.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Instrucciones adicionales -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📝
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">¿Cómo usarlo?</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">
+                                Ingresa este código en la página de restablecimiento que aparece en tu navegador.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Advertencia de seguridad -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#F9F9F9; padding:14px 18px; border-radius:8px; border:1px solid #E0E0E0;">
+                    <p style="margin:0; font-size:13px; color:#555;">
+                      <strong>🔒 Seguridad:</strong> Si no solicitaste restablecer tu contraseña, puedes ignorar este mensaje. Nadie más podrá acceder a tu cuenta sin este código.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Botón para ir a restablecer (opcional, depende de flujo) -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                        <a href="${process.env.FRONTEND_URL}/restablecer-contrasena" target="_blank"
+                          style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
+                          Ir a restablecer contraseña &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Problemas con el código? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    Recuerda que nunca compartiremos tu contraseña por correo electrónico. 
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    y 
+                    <a href="${process.env.FRONTEND_URL}/privacidad" style="color:#185FA5;text-decoration:underline;">Aviso de Privacidad</a>.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un mensaje automático, por favor no respondas a este correo.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 
@@ -1914,69 +2546,392 @@ export async function sendAccountUpdateAlert(
     changeDate: Date,
     reportLink?: string
 ) {
-    const subject = '⚠️ Alerta: Tu información de cuenta ha sido actualizada - Todonto';
-    
+    const subject = '⚠️ Alerta de seguridad: Tu información ha sido actualizada - Todonto';
+
     const formatDateTime = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
+            minute: '2-digit'
         });
     };
-    
+
     const timeFormatted = formatDateTime(changeDate);
-    
-    // Construir lista de cambios
-    let changesList = '';
+
+    // Construir bloques HTML para cada cambio
+    let changesHtml = '';
     if (changes.email) {
-        changesList += `
-            <p><strong>📧 Correo electrónico:</strong><br/>
-            Antiguo: ${changes.email.old}<br/>
-            Nuevo: ${changes.email.new}</p>
+        changesHtml += `
+            <tr>
+                <td style="padding-bottom:16px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                        style="background-color:#FFF3E0;border-radius:10px;border-left:3px solid #E65100;">
+                        <tr>
+                            <td class="feature-inner" style="padding:16px 18px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                        <td width="52" style="vertical-align:top;padding-right:14px;">
+                                            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td align="center" width="38" height="38"
+                                                        style="background-color:#E65100;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                                        📧
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                        <td style="vertical-align:top;">
+                                            <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#E65100;">Correo electrónico modificado</p>
+                                            <p style="margin:0;font-size:13px;color:#555;">
+                                                <span style="color:#999;">Anterior:</span> ${changes.email.old}<br/>
+                                                <span style="color:#999;">Nuevo:</span> <strong>${changes.email.new}</strong>
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
         `;
     }
+
     if (changes.phone) {
-        changesList += `
-            <p><strong>📱 Número de teléfono:</strong><br/>
-            Antiguo: ${changes.phone.old}<br/>
-            Nuevo: ${changes.phone.new}</p>
+        changesHtml += `
+            <tr>
+                <td style="padding-bottom:16px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                        style="background-color:#FFF3E0;border-radius:10px;border-left:3px solid #E65100;">
+                        <tr>
+                            <td class="feature-inner" style="padding:16px 18px;">
+                                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                                    <tr>
+                                        <td width="52" style="vertical-align:top;padding-right:14px;">
+                                            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td align="center" width="38" height="38"
+                                                        style="background-color:#E65100;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                                        📱
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                        <td style="vertical-align:top;">
+                                            <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#E65100;">Teléfono modificado</p>
+                                            <p style="margin:0;font-size:13px;color:#555;">
+                                                <span style="color:#999;">Anterior:</span> ${changes.phone.old}<br/>
+                                                <span style="color:#999;">Nuevo:</span> <strong>${changes.phone.new}</strong>
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
         `;
     }
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #FF9800; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Se han realizado cambios en la información de tu cuenta de <strong>Todonto</strong> el día <strong>${timeFormatted}</strong>.</p>
-                
-                <div style="background-color: #FFF3E0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0;"><strong>📝 Detalles de los cambios:</strong></p>
-                    ${changesList}
-                </div>
-                
-                <p><strong>¿No reconoces estos cambios?</strong> Alguien más podría estar accediendo a tu cuenta.</p>
-                <p>Te recomendamos:</p>
-                <ul>
-                    <li>Cambiar tu contraseña inmediatamente</li>
-                    <li>Revisar los dispositivos conectados en tu perfil</li>
-                    <li>Contactar a soporte</li>
-                </ul>
-                
-                ${reportLink ? `<a href="${reportLink}" style="display: inline-block; background-color: #f44336; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Reportar actividad sospechosa</a>` : ''}
-                <a href="${process.env.FRONTEND_URL}/perfil/seguridad" style="display: inline-block; background-color: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px; margin-left: 10px;">Ir a seguridad</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si fuiste tú quien realizó estos cambios, ignora este mensaje. De lo contrario, actúa de inmediato.</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alerta de seguridad - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu información de cuenta ha sido modificada. Si no fuiste tú, actúa de inmediato.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Alerta de seguridad
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Detectamos cambios en la información sensible de tu cuenta de <strong style="color:#185FA5;">Todonto</strong>.
+                    La modificación se realizó el <strong>${timeFormatted}</strong>.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles de los cambios
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Lista de cambios (dinámica) -->
+              ${changesHtml}
+
+              <!-- Mensaje de advertencia principal -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFEBEE; padding:18px 20px; border-radius:10px; border-left:5px solid #D32F2F;">
+                    <p style="margin:0 0 8px; font-size:15px; font-weight:bold; color:#D32F2F;">
+                      ⚠️ ¿No reconoces esta actividad?
+                    </p>
+                    <p style="margin:0; font-size:14px; color:#555; line-height:1.6;">
+                      Si no realizaste estos cambios, te recomendamos tomar medidas de inmediato para proteger tu cuenta.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Acciones recomendadas -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🔒
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#0C447C;">Pasos recomendados:</p>
+                              <ul style="margin:0;padding-left:20px;font-size:13px;color:#185FA5;">
+                                <li style="margin-bottom:6px;">Cambia tu contraseña de inmediato</li>
+                                <li style="margin-bottom:6px;">Revisa los dispositivos conectados en tu perfil</li>
+                                <li>Contacta a soporte si necesitas ayuda</li>
+                              </ul>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Botones de acción -->
+              <tr>
+                <td align="center" style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      ${reportLink ? `
+                      <td width="48%" align="center" style="padding-right:2%;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#D32F2F;border-radius:10px;">
+                              <a href="${reportLink}" target="_blank"
+                                style="display:inline-block;background-color:#D32F2F;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                🚨 Reportar actividad
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      ` : ''}
+                      <td width="${reportLink ? '48%' : '100%'}" align="center">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                              <a href="${process.env.FRONTEND_URL}/perfil/seguridad" target="_blank"
+                                style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                Ir a seguridad &rarr;
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Información legal -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <p style="margin:0;font-size:12px;color:#777;line-height:1.5;">
+                    Si fuiste tú quien realizó estos cambios, puedes ignorar este mensaje. 
+                    Recuerda que Todonto nunca te pedirá tu contraseña por correo electrónico.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Necesitas ayuda? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    · 
+                    <a href="${process.env.FRONTEND_URL}/privacidad" style="color:#185FA5;text-decoration:underline;">Aviso de Privacidad</a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un mensaje automático de seguridad. No respondas a este correo.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 
@@ -1993,54 +2948,371 @@ export async function sendPasswordChangedConfirmation(
     changeDate: Date,
     reportLink?: string
 ) {
-    const subject = '🔒 Tu contraseña ha sido cambiada - Todonto';
-    
+    const subject = '🔒 Confirmación: Tu contraseña ha sido cambiada - Todonto';
+
     const formatDateTime = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
+            minute: '2-digit'
         });
     };
-    
+
     const timeFormatted = formatDateTime(changeDate);
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #4CAF50; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Tu contraseña de <strong>Todonto</strong> ha sido cambiada exitosamente el día <strong>${timeFormatted}</strong>.</p>
-                
-                <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0;">Si realizaste este cambio, no necesitas hacer nada más. Tu cuenta sigue segura.</p>
-                </div>
-                
-                <p><strong>¿No realizaste este cambio?</strong> Alguien más podría estar accediendo a tu cuenta.</p>
-                <p>Te recomendamos:</p>
-                <ul>
-                    <li>Cambiar tu contraseña nuevamente</li>
-                    <li>Revisar los dispositivos conectados en tu perfil</li>
-                    <li>Contactar a soporte inmediatamente</li>
-                </ul>
-                
-                ${reportLink ? `<a href="${reportLink}" style="display: inline-block; background-color: #f44336; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Reportar actividad sospechosa</a>` : ''}
-                <a href="${process.env.FRONTEND_URL}/perfil/seguridad" style="display: inline-block; background-color: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px; margin-left: 10px;">Ir a seguridad</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si fuiste tú, ignora este mensaje. De lo contrario, actúa de inmediato.</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contraseña cambiada - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu contraseña de Todonto ha sido actualizada exitosamente.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Seguridad de la cuenta
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Te confirmamos que la contraseña de tu cuenta en <strong style="color:#185FA5;">Todonto</strong> 
+                    ha sido cambiada exitosamente el día <strong>${timeFormatted}</strong>.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Confirmación de cambio exitoso -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E8F5E9;border-radius:10px;border-left:3px solid #2E7D32;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#2E7D32;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    ✅
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#2E7D32;">Contraseña actualizada</p>
+                              <p style="margin:0;font-size:13px;color:#555;">
+                                Si realizaste este cambio, no necesitas hacer nada más. Tu cuenta está protegida con la nueva contraseña.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Detalles del cambio -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📅
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Fecha y hora del cambio</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${timeFormatted}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Advertencia: ¿No fuiste tú? -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFEBEE; padding:18px 20px; border-radius:10px; border-left:5px solid #D32F2F;">
+                    <p style="margin:0 0 8px; font-size:15px; font-weight:bold; color:#D32F2F;">
+                      ⚠️ ¿No reconoces este cambio?
+                    </p>
+                    <p style="margin:0; font-size:14px; color:#555; line-height:1.6;">
+                      Si no fuiste tú quien cambió la contraseña, alguien podría tener acceso a tu cuenta. 
+                      Te recomendamos actuar de inmediato.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Acciones recomendadas -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🔒
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#0C447C;">Pasos recomendados:</p>
+                              <ul style="margin:0;padding-left:20px;font-size:13px;color:#185FA5;">
+                                <li style="margin-bottom:6px;">Cambia tu contraseña nuevamente de inmediato</li>
+                                <li style="margin-bottom:6px;">Revisa los dispositivos conectados en tu perfil</li>
+                                <li>Contacta a soporte si detectas actividad inusual</li>
+                              </ul>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Botones de acción -->
+              <tr>
+                <td align="center" style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      ${reportLink ? `
+                      <td width="48%" align="center" style="padding-right:2%;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#D32F2F;border-radius:10px;">
+                              <a href="${reportLink}" target="_blank"
+                                style="display:inline-block;background-color:#D32F2F;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                🚨 Reportar actividad
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      ` : ''}
+                      <td width="${reportLink ? '48%' : '100%'}" align="center">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                              <a href="${process.env.FRONTEND_URL}/perfil/seguridad" target="_blank"
+                                style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                Ir a seguridad &rarr;
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Información legal -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <p style="margin:0;font-size:12px;color:#777;line-height:1.5;">
+                    Si realizaste este cambio, puedes ignorar este mensaje. 
+                    Recuerda que Todonto nunca te pedirá tu contraseña por correo electrónico.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Necesitas ayuda? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    · 
+                    <a href="${process.env.FRONTEND_URL}/privacidad" style="color:#185FA5;text-decoration:underline;">Aviso de Privacidad</a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un mensaje automático de seguridad. No respondas a este correo.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
-
 
 /**
  * Envía un recibo por correo después de una suscripción (paga o prueba).
@@ -2455,50 +3727,379 @@ export async function sendAccountBlockedAlert(
     supportLink?: string
 ) {
     const subject = '🔒 Tu cuenta ha sido bloqueada temporalmente - Todonto';
-    
+
     const formatDateTime = (date: Date) => {
-        return date.toLocaleString('es-MX', {
+        return date.toLocaleDateString('es-MX', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
+            minute: '2-digit'
         });
     };
-    
+
     const expiresFormatted = formatDateTime(blockExpiresAt);
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #f44336; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Hemos detectado <strong>${attempts} intentos fallidos consecutivos</strong> para iniciar sesión en tu cuenta de <strong>Todonto</strong>.</p>
-                <p>Por seguridad, tu cuenta ha sido <strong>bloqueada temporalmente por ${blockDurationMinutes} minutos</strong>.</p>
-                
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0;"><strong>⏰ Fin del bloqueo:</strong> ${expiresFormatted}</p>
-                    <p style="margin: 0;"><strong>🔐 Motivo:</strong> Demasiados intentos fallidos (posible ataque de fuerza bruta o contraseña olvidada).</p>
-                </div>
-                
-                <p><strong>¿Qué puedes hacer?</strong></p>
-                <ul>
-                    <li>Esperar a que termine el bloqueo para volver a intentarlo.</li>
-                    <li>Restablecer tu contraseña si no la recuerdas.</li>
-                    <li>Si no fuiste tú, contacta a soporte para asegurar tu cuenta.</li>
-                </ul>
-                
-                ${resetPasswordLink ? `<a href="${resetPasswordLink}" style="display: inline-block; background-color: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 10px 10px 0;">Restablecer contraseña</a>` : ''}
-                ${supportLink ? `<a href="${supportLink}" style="display: inline-block; background-color: #f44336; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 0;">Contactar soporte</a>` : ''}
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si fuiste tú quien olvidó la contraseña, ignora este mensaje y espera el fin del bloqueo. De lo contrario, actúa de inmediato.</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cuenta bloqueada - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu cuenta ha sido bloqueada temporalmente por seguridad tras ${attempts} intentos fallidos.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Alerta de seguridad
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Hemos detectado <strong>${attempts} intentos fallidos consecutivos</strong> para iniciar sesión en tu cuenta de 
+                    <strong style="color:#185FA5;">Todonto</strong>. Por seguridad, tu cuenta ha sido 
+                    <strong style="color:#D32F2F;">bloqueada temporalmente por ${blockDurationMinutes} minutos</strong>.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles del bloqueo
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Bloque de expiración -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFEBEE;border-radius:10px;border-left:5px solid #D32F2F;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#D32F2F;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    ⏰
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#D32F2F;">Fin del bloqueo</p>
+                              <p style="margin:0;font-size:13px;color:#555;">
+                                ${expiresFormatted}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Intentos fallidos -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF3E0;border-radius:10px;border-left:3px solid #E65100;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#E65100;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🔁
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#E65100;">Intentos fallidos</p>
+                              <p style="margin:0;font-size:13px;color:#555;">${attempts} intentos consecutivos</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Mensaje de advertencia -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFEBEE; padding:18px 20px; border-radius:10px; border-left:5px solid #D32F2F;">
+                    <p style="margin:0 0 8px; font-size:15px; font-weight:bold; color:#D32F2F;">
+                      ⚠️ Motivo del bloqueo
+                    </p>
+                    <p style="margin:0; font-size:14px; color:#555; line-height:1.6;">
+                      Demasiados intentos fallidos consecutivos. Esto podría deberse a un olvido de contraseña 
+                      o a un intento de acceso no autorizado. Por tu seguridad, hemos bloqueado temporalmente la cuenta.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Acciones recomendadas -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🔒
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#0C447C;">¿Qué puedes hacer?</p>
+                              <ul style="margin:0;padding-left:20px;font-size:13px;color:#185FA5;">
+                                <li style="margin-bottom:6px;">Espera a que termine el bloqueo para volver a intentarlo.</li>
+                                <li style="margin-bottom:6px;">Si olvidaste tu contraseña, utiliza la opción de restablecer.</li>
+                                <li>Si no fuiste tú, contacta a soporte de inmediato.</li>
+                              </ul>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Botones de acción -->
+              <tr>
+                <td align="center" style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      ${resetPasswordLink ? `
+                      <td width="${supportLink ? '48%' : '100%'}" align="center" style="${supportLink ? 'padding-right:2%;' : ''}">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                              <a href="${resetPasswordLink}" target="_blank"
+                                style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                Restablecer contraseña &rarr;
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      ` : ''}
+                      ${supportLink ? `
+                      <td width="${resetPasswordLink ? '48%' : '100%'}" align="center">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td align="center" style="background-color:#D32F2F;border-radius:10px;">
+                              <a href="${supportLink}" target="_blank"
+                                style="display:inline-block;background-color:#D32F2F;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:14px 10px;border-radius:10px;text-align:center;width:100%;">
+                                🚨 Contactar soporte
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      ` : ''}
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Información legal -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <p style="margin:0;font-size:12px;color:#777;line-height:1.5;">
+                    Si fuiste tú quien olvidó la contraseña, no te preocupes, podrás volver a intentarlo tras el bloqueo. 
+                    Si no reconoces esta actividad, te recomendamos restablecer tu contraseña y revisar la seguridad de tu cuenta.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Necesitas ayuda adicional? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    · 
+                    <a href="${process.env.FRONTEND_URL}/privacidad" style="color:#185FA5;text-decoration:underline;">Aviso de Privacidad</a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un mensaje automático de seguridad. No respondas a este correo.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
