@@ -247,6 +247,79 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Funcion para cancelar suscripciones (acceso hasta la fecha fin)
+CREATE OR REPLACE FUNCTION usuario.finalizar_suscripcion_a_inicio()
+RETURNS INTEGER AS $$
+DECLARE
+    filas_creadas INTEGER := 0;
+    id_inicio INT;
+    rec RECORD;
+BEGIN
+    -- Obtener el id del plan 'Inicio'
+    SELECT id_tipo_suscripcion INTO id_inicio
+    FROM usuario."tTipoSuscripcion"
+    WHERE nombre = 'Inicio' AND activo = true;
+
+    IF id_inicio IS NULL THEN
+        RAISE EXCEPTION 'No se encontró el plan Inicio';
+    END IF;
+
+    -- Buscar suscripciones canceladas que ya expiraron (fecha_fin <= NOW() o NULL)
+    -- y que el usuario NO tenga ya una suscripción activa de 'Inicio' (para evitar duplicados)
+    FOR rec IN 
+        SELECT us.id_usuario, us.id_suscripcion
+        FROM usuario."tUsuarioSuscripcion" us
+        WHERE us.estado = 'cancelada'
+          AND (us.fecha_fin IS NULL OR us.fecha_fin <= NOW())
+          AND NOT EXISTS (
+              SELECT 1 FROM usuario."tUsuarioSuscripcion" us2
+              WHERE us2.id_usuario = us.id_usuario
+                AND us2.estado = 'activa'
+                AND us2.id_tipo_suscripcion = id_inicio
+          )
+    LOOP
+        -- Insertar NUEVA suscripción de 'Inicio' activa
+        INSERT INTO usuario."tUsuarioSuscripcion" (
+            id_usuario,
+            id_tipo_suscripcion,
+            fecha_inicio,
+            fecha_fin,
+            estado,
+            created_at,
+            updated_at
+        ) VALUES (
+            rec.id_usuario,
+            id_inicio,
+            NOW(),
+            NULL,
+            'activa',
+            NOW(),
+            NULL
+        );
+        filas_creadas := filas_creadas + 1;
+    END LOOP;
+
+    RETURN filas_creadas;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+WITH duplicados AS (
+    SELECT id_suscripcion, id_usuario, created_at,
+           ROW_NUMBER() OVER (PARTITION BY id_usuario ORDER BY created_at DESC) as rn
+    FROM usuario."tUsuarioSuscripcion"
+    WHERE id_tipo_suscripcion = (SELECT id_tipo_suscripcion FROM usuario."tTipoSuscripcion" WHERE nombre = 'Inicio')
+      AND estado = 'activa'
+)
+UPDATE usuario."tUsuarioSuscripcion"
+SET estado = 'expirada', updated_at = NOW()
+WHERE id_suscripcion IN (
+    SELECT id_suscripcion FROM duplicados WHERE rn > 1
+);
+
+CREATE UNIQUE INDEX idx_usuario_suscripcion_activa 
+ON usuario."tUsuarioSuscripcion" (id_usuario) 
+WHERE estado = 'activa';
+
 -- Permisos de acceso
 GRANT USAGE ON SCHEMA usuario TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA usuario TO anon, authenticated, service_role;

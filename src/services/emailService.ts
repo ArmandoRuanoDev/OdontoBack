@@ -854,7 +854,7 @@ export async function sendCancellationEmail(
     endDate: Date | null
 ) {
     const subject = 'Lamentamos que te vayas – Todonto';
-    
+
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
@@ -862,33 +862,304 @@ export async function sendCancellationEmail(
             day: 'numeric'
         });
     };
-    
+
     const endFormatted = endDate ? formatDate(endDate) : 'de inmediato';
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #f44336; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Lamentamos que hayas decidido cancelar tu suscripción al plan <strong>${plan}</strong>.</p>
-                <p>Tu acceso continuará activo hasta <strong>${endFormatted}</strong>.</p>
-                
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0;">¿Fue algo que pudimos mejorar? <a href="${process.env.FRONTEND_URL}/feedback">Cuéntanos tu opinión</a> para seguir creciendo.</p>
-                </div>
-                
-                <p>Recuerda que <strong>siempre serás bienvenido de regreso</strong>. Puedes volver a suscribirte en cualquier momento y recuperar todos los beneficios de Todonto.</p>
-                
-                <a href="${process.env.FRONTEND_URL}/suscripciones" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 20px;">Volver a suscribirme</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si no solicitaste esta cancelación, por favor contacta a soporte inmediatamente.</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cancelación de suscripción - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu suscripción ha sido cancelada. Todavía puedes acceder hasta ${endFormatted}.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        😔
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Cancelación de suscripción
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </table>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Lamentamos que hayas decidido cancelar tu suscripción al plan <strong style="color:#185FA5;">${plan}</strong>.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles de la cancelación
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Feature: Plan cancelado -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📋
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Plan cancelado</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${plan}</p>
+                            </td>
+                          </tr>
+                        </tr>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feature: Acceso hasta -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    ⏳
+                                  </td>
+                                </tr>
+                              <tr>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Acceso vigente hasta</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${endFormatted}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feedback -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; border-left:3px solid #FF9800;">
+                    <p style="margin:0; font-size:13px; color:#E65100;">
+                      <strong>💬 ¿Fue algo que pudimos mejorar?</strong> 
+                      <a href="${process.env.FRONTEND_URL}/feedback" style="color:#185FA5;">Cuéntanos tu opinión</a> para seguir creciendo.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Mensaje de regreso -->
+              <tr>
+                <td style="padding-bottom:30px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;">
+                    Recuerda que <strong style="color:#185FA5;">siempre serás bienvenido de regreso</strong>. Puedes volver a suscribirte en cualquier momento y recuperar todos los beneficios de Todonto.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Botón de volver a suscribirse -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#4CAF50;border-radius:10px;">
+                        <a href="${process.env.FRONTEND_URL}/suscripciones" target="_blank"
+                          style="display:inline-block;background-color:#4CAF50;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
+                          Volver a suscribirme
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Tienes alguna pregunta? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                          — te responderemos en menos de 24 horas.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    Si no solicitaste esta cancelación, por favor contacta a soporte inmediatamente.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este mensaje fue enviado a ${to}.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </table>
+
+      </table>
+    </td>
+  </td>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 
@@ -1198,6 +1469,7 @@ export async function sendCodeVerificationEmail(to: string, code: string, userna
 
     await sendEmail(to, subject, html);
 }
+
 /**
  * Envía un correo con un código de 6 dígitos para restablecer la contraseña
  * @param to - Correo del destinatario
@@ -1769,35 +2041,40 @@ export async function sendPasswordChangedConfirmation(
     await sendEmail(to, subject, html);
 }
 
+
 /**
- * Envía un recibo de suscripción (factura) al usuario
+ * Envía un recibo por correo después de una suscripción (paga o prueba).
  * @param to - Correo del usuario
  * @param username - Nombre del usuario
- * @param receiptNumber - Número de recibo/factura (puedes generarlo como "TOD-YYYYMMDD-XXXX")
- * @param plan - Nombre del plan (ej. "Mensual", "Anual")
- * @param price - Precio pagado
- * @param currency - Moneda (ej. "MXN")
+ * @param plan - Nombre del plan
+ * @param subtotal - Subtotal antes de impuestos
+ * @param tax - Monto de impuestos aplicados (ej. 0.16 * subtotal)
+ * @param total - Total a pagar (subtotal + tax)
+ * @param currency - Moneda
  * @param startDate - Fecha de inicio
- * @param endDate - Fecha de fin (o null si perpetua)
- * @param paymentMethod - Método de pago (ej. "Tarjeta terminada en 1234", "PayPal", etc.)
- * @param transactionId - ID de transacción de la pasarela de pagos (opcional)
- * @param tax - Impuestos aplicados (opcional, ej. 0.16)
+ * @param endDate - Fecha de fin (null si perpetua)
+ * @param invoiceNumber - Número de recibo/factura (único)
+ * @param paymentMethod - Método de pago (ej. "Tarjeta terminada en 1234")
+ * @param isTrial - Si es periodo de prueba
  */
 export async function sendSubscriptionReceipt(
     to: string,
     username: string,
-    receiptNumber: string,
     plan: string,
-    price: number,
+    subtotal: number,
+    tax: number,
+    total: number,
     currency: string,
     startDate: Date,
     endDate: Date | null,
+    invoiceNumber: string,
     paymentMethod: string,
-    transactionId?: string,
-    tax?: number
+    isTrial: boolean = false
 ) {
-    const subject = `🧾 Tu recibo de suscripción - Todonto (${receiptNumber})`;
-    
+    const subject = isTrial
+        ? '🧾 Comienza tu periodo de prueba – Todonto'
+        : '🧾 Gracias por tu suscripción – Todonto';
+
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
@@ -1805,86 +2082,356 @@ export async function sendSubscriptionReceipt(
             day: 'numeric'
         });
     };
-    
-    const formatDateTime = (date: Date) => {
-        return date.toLocaleString('es-MX', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('es-MX', {
+            style: 'currency',
+            currency: currency,
+            minimumFractionDigits: 2
+        }).format(value);
     };
-    
+
+    const subtotalFormatted = formatCurrency(subtotal);
+    const taxFormatted = formatCurrency(tax);
+    const totalFormatted = formatCurrency(total);
     const startFormatted = formatDate(startDate);
-    const endFormatted = endDate ? formatDate(endDate) : 'Suscripción de por vida';
-    const receiptDateFormatted = formatDateTime(new Date());
-    
-    const priceFormatted = new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: 2
-    }).format(price);
-    
-    let subtotal = price;
-    let taxAmount = 0;
-    let total = price;
-    
-    if (tax && tax > 0) {
-        taxAmount = price * tax;
-        total = price + taxAmount;
+    const endFormatted = endDate ? formatDate(endDate) : 'Nunca (suscripción de por vida)';
+
+    // Texto sobre cobro automático (solo si no es prueba y es pago recurrente)
+    let autoRenewText = '';
+    if (!isTrial && total > 0) {
+        autoRenewText = `
+            <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; margin:20px 0;">
+                <p style="margin:0; font-size:13px; color:#E65100;">
+                    <strong>🔁 Cobro automático:</strong> Aceptas que se te cobrará de forma automática un cargo <strong>${plan.toLowerCase()}</strong> de ${totalFormatted} por el servicio de Todonto hasta que canceles la suscripción. Puedes cancelar en cualquier momento desde la página de tu cuenta. No se realizan reembolsos parciales. Se aplican <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;">Términos y Condiciones</a>.
+                </p>
+            </div>
+        `;
+    } else if (isTrial) {
+        autoRenewText = `
+            <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; margin:20px 0;">
+                <p style="margin:0; font-size:13px; color:#E65100;">
+                    <strong>⚠️ Tu prueba termina el ${endFormatted}.</strong> Al finalizar, se cobrará automáticamente el plan mensual (${totalFormatted}) a menos que canceles antes.
+                </p>
+            </div>
+        `;
     }
-    
-    const taxFormatted = taxAmount ? new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(taxAmount) : null;
-    const totalFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(total);
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #4CAF50; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-                <p style="color: white; margin: 5px 0 0;">Recibo de suscripción</p>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <p style="text-align: right; color: #777; margin: 0;">${receiptNumber}</p>
-                <p style="text-align: right; color: #777; margin-top: 0;">${receiptDateFormatted}</p>
-                
-                <h2>¡Hola, ${username}!</h2>
-                <p>Gracias por tu compra. A continuación, los detalles de tu suscripción a <strong>Todonto</strong>.</p>
-                
-                <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0;"><strong>Plan contratado:</strong> ${plan}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>Fecha de inicio:</strong> ${startFormatted}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>Fecha de expiración:</strong> ${endFormatted}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>Método de pago:</strong> ${paymentMethod}</p>
-                    ${transactionId ? `<p style="margin: 0;"><strong>ID de transacción:</strong> ${transactionId}</p>` : ''}
-                </div>
-                
-                <div style="border-top: 2px solid #ddd; border-bottom: 2px solid #ddd; padding: 10px 0; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>Resumen de cargos:</strong></p>
-                    <p style="margin: 5px 0; display: flex; justify-content: space-between;">
-                        <span>Subtotal:</span>
-                        <span>${priceFormatted}</span>
-                    </p>
-                    ${taxFormatted ? `<p style="margin: 5px 0; display: flex; justify-content: space-between;">
-                        <span>IVA (${(tax! * 100).toFixed(0)}%):</span>
-                        <span>${taxFormatted}</span>
-                    </p>` : ''}
-                    <p style="margin: 10px 0 5px; font-weight: bold; font-size: 1.2em; display: flex; justify-content: space-between;">
-                        <span>Total:</span>
-                        <span>${totalFormatted}</span>
-                    </p>
-                </div>
-                
-                <p>Este recibo es válido como comprobante de pago. Puedes descargarlo desde tu perfil en cualquier momento.</p>
-                
-                <a href="${process.env.FRONTEND_URL}/perfil/suscripciones" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 20px;">Ver mis suscripciones</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si tienes alguna duda, contacta a soporte@todonto.com</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recibo de suscripción - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Gracias por tu suscripción. Recibo adjunto.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🧾
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Recibo de suscripción
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Gracias por tu pedido, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Encontrarás adjunto el recibo de tu suscripción a <strong style="color:#185FA5;">Todonto</strong>.
+                    ${isTrial ? 'Tu periodo de prueba ya está activo.' : '¡Disfruta de todos los beneficios!'}
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Artículos -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Artículos
+                  </span>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📦
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Plan contratado</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${plan}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Fecha, Número de recibo y Método de pago -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💳
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Fecha</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${startFormatted}</p>
+                              <p style="margin:10px 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Número de recibo</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;word-break:break-all;">${invoiceNumber}</p>
+                              <p style="margin:10px 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Método de pago</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${paymentMethod}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </table>
+
+              <!-- Detalle de cargos (subtotal, impuestos, total) -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💰
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Resumen de cargos</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;display:flex;justify-content:space-between;">
+                                <span>Subtotal:</span> <span>${subtotalFormatted}</span>
+                              </p>
+                              <p style="margin:5px 0;font-size:13px;color:#185FA5;display:flex;justify-content:space-between;">
+                                <span>IVA (16%):</span> <span>${taxFormatted}</span>
+                              </p>
+                              <p style="margin:5px 0 0;font-size:15px;font-weight:bold;color:#0C447C;display:flex;justify-content:space-between;">
+                                <span>Total:</span> <span>${totalFormatted}</span>
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Información de cobro automático / prueba -->
+              ${autoRenewText}
+
+              <!-- Botón de cancelar (como enlace) -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <p style="margin:0;font-size:13px;color:#555;">
+                    Puedes cancelar tu suscripción en cualquier momento desde la página de tu cuenta.
+                    <a href="${process.env.FRONTEND_URL}/perfil/cancelar-suscripcion" style="color:#185FA5;text-decoration:underline;">Cancelar suscripción</a>
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Tienes alguna pregunta o reclamo? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                          — te responderemos en menos de 24 horas.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    Todonto S.A. de C.V.<br/>
+                    Regeringsgatan 19, SE-111 53 Stockholm, Sweden (ejemplo)<br/>
+                    VAT ID: SESomething
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este mensaje fue enviado a ${to}.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </table>
+
+      </table>
+    </td>
+  </td>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 

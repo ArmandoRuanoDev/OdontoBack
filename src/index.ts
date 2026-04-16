@@ -1,5 +1,6 @@
 import express, { Application } from "express";
 import AuthRoutes from "./routes/authRoutes"; 
+import SubscribeRoutes from "./routes/subscribeRoutes";
 import morgan from "morgan";
 import cors from "cors";
 
@@ -23,6 +24,7 @@ class Server {
 
     routes() : void {
         this.app.use("/api/auth", AuthRoutes);
+        this.app.use("/api/sub", SubscribeRoutes);
     }
 
     start(): void {

@@ -27,7 +27,6 @@ class AuthRoutes {
         this.router.post('/login', loginLimiter, authController.login);
         this.router.post('/send-verification-code', authController.sendVerificationCode);
         this.router.post('/verify-email', authController.verifyEmail);
-        this.router.post('/subscribe', authMiddleware, authController.subscribe);
     }
 }
 
