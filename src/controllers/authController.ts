@@ -4,7 +4,8 @@ import bcrypt from "bcrypt";
 import { RegisterUser } from "../interfaces/authInterface";
 import { logError } from "../util/logError";
 import { generateAccessToken, generateRefreshToken, hashRefreshToken, getRefreshTokenExpiry, TokenPayload } from "../util/tokenUtil";
-import { sendWelcomeEmail } from '../services/emailService';
+import { sendCodeVerificationEmail, sendSecurityAlertEmail, sendWelcomeEmail, sendSubscriptionEmail } from '../services/emailService';
+import { generateSixDigitCode } from "../util/codeGenerator";
 
 class AuthController {
 
@@ -203,12 +204,10 @@ class AuthController {
         try {
             const { correo, contrasena } = req.body;
 
-            // Validaciones básicas
             if (!correo || !contrasena) {
                 return res.status(400).json({ message: "Correo y contraseña son obligatorios" });
             }
 
-            // Buscar usuario por correo electrónico o nombre de usuario
             const { data: user, error: userError } = await supabase
                 .schema('usuario')
                 .from('tUsuario')
@@ -221,13 +220,11 @@ class AuthController {
                 return res.status(500).json({ message: "Error al buscar usuario" });
             }
 
-            // Usuario no existe
             if (!user) {
                 await this.registrarIntentoFallido(null, req);
                 return res.status(401).json({ message: "Credenciales inválidas" });
             }
 
-            // Obtener información de acceso
             const { data: acceso, error: accesoError } = await supabase
                 .schema('usuario')
                 .from('tAcceso')
@@ -239,7 +236,6 @@ class AuthController {
                 await logError(req, accesoError, 'AuthController', 'login', 'usuario', 'lAcceso', user.id_usuario);
             }
 
-            // Verificar bloqueo
             if (acceso?.bloqueado_hasta && new Date(acceso.bloqueado_hasta) > new Date()) {
                 const minutosRestantes = Math.ceil((new Date(acceso.bloqueado_hasta).getTime() - Date.now()) / 60000);
                 return res.status(423).json({
@@ -247,15 +243,13 @@ class AuthController {
                 });
             }
 
-            // Verificar contraseña
             const passwordMatch = await bcrypt.compare(contrasena, user.contrasena_hash);
             if (!passwordMatch) {
-                // Incrementar intentos fallidos
                 await this.registrarIntentoFallido(user.id_usuario, req);
                 return res.status(401).json({ message: "Credenciales inválidas" });
             }
 
-            // Login exitoso: resetear intentos, actualizar último acceso
+            // Login exitoso
             const ahora = new Date();
             const { error: updateError } = await supabase
                 .schema('usuario')
@@ -272,7 +266,23 @@ class AuthController {
                 await logError(req, updateError, 'AuthController', 'login_update_acceso', 'usuario', 'lAcceso', user.id_usuario);
             }
 
-            // Obtener suscripción activa del usuario
+            // Obtener IP y user agent para la alerta y la sesión
+            const realIp = (req.headers['x-forwarded-for'] || req.ip || req.socket.remoteAddress) as string;
+            const userAgent = req.headers['user-agent'] || 'Desconocido';
+
+            // Enviar alerta de seguridad (sin bloquear)
+            sendSecurityAlertEmail(
+                user.correo_electronico,
+                user.nombre_usuario,
+                realIp,
+                userAgent,
+                ahora
+            ).catch(err => {
+                console.error('Error al enviar alerta de seguridad:', err);
+                logError(req, err, 'AuthController', 'sendSecurityAlertEmail', 'usuario', 'lAcceso', user.id_usuario);
+            });
+
+            // Obtener suscripción activa
             const { data: suscripcion, error: subError } = await supabase
                 .schema('usuario')
                 .from('tUsuarioSuscripcion')
@@ -294,18 +304,16 @@ class AuthController {
                 .or('estado.eq.activa,estado.eq.pendiente')
                 .or('fecha_fin.is.null,fecha_fin.gt.now()')
                 .maybeSingle();
-            
+
             if (subError) {
                 await logError(req, subError, 'AuthController', 'login_suscripcion', 'usuario', 'lAcceso', user.id_usuario);
-                // No interrumpimos el login, solo omitimos la suscripción
             }
 
             let suscripcionInfo = null;
             if (suscripcion) {
-                const tipoData = Array.isArray(suscripcion.tTipoSuscripcion) 
-                    ? suscripcion.tTipoSuscripcion[0] 
+                const tipoData = Array.isArray(suscripcion.tTipoSuscripcion)
+                    ? suscripcion.tTipoSuscripcion[0]
                     : suscripcion.tTipoSuscripcion;
-
                 suscripcionInfo = {
                     id: suscripcion.id_suscripcion,
                     tipo: tipoData?.nombre || null,
@@ -320,7 +328,6 @@ class AuthController {
                 };
             }
 
-            // Preparar payload del token
             const tokenPayload: TokenPayload = {
                 id_usuario: user.id_usuario,
                 nombre_usuario: user.nombre_usuario,
@@ -328,14 +335,11 @@ class AuthController {
                 id_rol_usuario: user.id_rol_usuario
             };
 
-            // Generar tokens
             const accessToken = generateAccessToken(tokenPayload);
             const refreshToken = generateRefreshToken(tokenPayload);
             const refreshTokenHash = await hashRefreshToken(refreshToken);
             const expiresAt = getRefreshTokenExpiry();
 
-            // Guardar sesión en tSesion (opcionalmente podrías revocar sesiones anteriores)
-            const realIp = req.headers['x-forwarded-for'] || req.ip || req.socket.remoteAddress;
             const { error: sessionError } = await supabase
                 .schema('usuario')
                 .from('tSesion')
@@ -343,7 +347,7 @@ class AuthController {
                     id_usuario: user.id_usuario,
                     refresh_token_hash: refreshTokenHash,
                     ip_address: realIp,
-                    user_agent: req.headers['user-agent'],
+                    user_agent: userAgent,
                     expires_at: expiresAt,
                     revoked: false
                 });
@@ -353,7 +357,6 @@ class AuthController {
                 return res.status(500).json({ message: "Error al iniciar sesión" });
             }
 
-            // Respuesta exitosa
             res.status(200).json({
                 message: "Inicio de sesión exitoso",
                 user: {
@@ -374,6 +377,324 @@ class AuthController {
             res.status(500).json({ error: "Error en el servidor" });
         }
     }
+
+    public async sendVerificationCode(req: Request, res: Response) {
+        try {
+            const { correo } = req.body;
+            if (!correo) {
+                return res.status(400).json({ message: "El correo electrónico es requerido" });
+            }
+
+            // Buscar usuario por correo
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_verificado')
+                .eq('correo_electronico', correo)
+                .maybeSingle();
+
+            if (userError || !user) {
+                // Por seguridad, no revelamos si el correo existe
+                return res.status(200).json({ message: "Si el correo existe y no está verificado, recibirás un código" });
+            }
+
+            if (user.correo_verificado) {
+                return res.status(400).json({ message: "El correo ya ha sido verificado" });
+            }
+
+            // Eliminar códigos anteriores no usados del mismo usuario (opcional, para evitar acumulación)
+            await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .delete()
+                .eq('id_usuario', user.id_usuario)
+                .eq('usado', false);
+
+            // Generar código de 6 dígitos
+            const code = generateSixDigitCode();
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+
+            // Guardar en base de datos
+            const { error: insertError } = await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .insert({
+                    id_usuario: user.id_usuario,
+                    codigo: code,
+                    expira: expiresAt,
+                    usado: false
+                });
+
+            if (insertError) {
+                await logError(req, insertError, 'AuthController', 'sendVerificationCode', 'sistema', 'tCodigosVerificacion', user.id_usuario);
+                return res.status(500).json({ message: "Error al generar el código" });
+            }
+
+            // Enviar correo con el código
+            await sendCodeVerificationEmail(correo, code, user.nombre_usuario);
+            res.status(200).json({ message: "Código de verificación enviado. Revisa tu correo." });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'sendVerificationCode', 'sistema', 'tCodigosVerificacion');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
+    }
+
+    public async verifyEmail(req: Request, res: Response) {
+        try {
+            const { correo, codigo } = req.body;
+            if (!correo || !codigo) {
+                return res.status(400).json({ message: "Correo y código son obligatorios" });
+            }
+
+            // Buscar usuario
+            const { data: user, error: userError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .select('id_usuario, nombre_usuario, correo_electronico, correo_verificado, id_rol_usuario')
+                .eq('correo_electronico', correo)
+                .maybeSingle();
+
+            if (userError || !user) {
+                return res.status(404).json({ message: "Usuario no encontrado" });
+            }
+
+            if (user.correo_verificado) {
+                return res.status(400).json({ message: `El correo ${correo} ya está verificado` });
+            }
+
+            // Buscar código válido
+            const { data: codigoReg, error: codeError } = await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .select('id_codigo, expira, usado')
+                .eq('id_usuario', user.id_usuario)
+                .eq('codigo', codigo)
+                .eq('usado', false)
+                .maybeSingle();
+
+            if (codeError || !codigoReg) {
+                return res.status(400).json({ message: "Código inválido o ya usado" });
+            }
+
+            // Verificar expiración
+            if (new Date(codigoReg.expira) < new Date()) {
+                return res.status(400).json({ message: "El código ha expirado. Solicita uno nuevo." });
+            }
+
+            // Marcar código como usado
+            await supabase
+                .schema('sistema')
+                .from('tCodigosVerificacion')
+                .update({ usado: true })
+                .eq('id_codigo', codigoReg.id_codigo);
+
+            // Actualizar usuario: correo_verificado = true
+            const { error: updateError } = await supabase
+                .schema('usuario')
+                .from('tUsuario')
+                .update({
+                    correo_verificado: true,
+                    updated_at: new Date()
+                })
+                .eq('id_usuario', user.id_usuario);
+
+            if (updateError) {
+                await logError(req, updateError, 'AuthController', 'verifyEmail', 'usuario', 'tUsuario', user.id_usuario);
+                return res.status(500).json({ message: "Error al verificar el correo" });
+            }
+
+            // Preparar payload del token
+            const tokenPayload: TokenPayload = {
+                id_usuario: user.id_usuario,
+                nombre_usuario: user.nombre_usuario,
+                correo_electronico: user.correo_electronico,
+                id_rol_usuario: user.id_rol_usuario
+            };
+
+            const accessToken = generateAccessToken(tokenPayload);
+            const refreshToken = generateRefreshToken(tokenPayload);
+            const refreshTokenHash = await hashRefreshToken(refreshToken);
+            const expiresAt = getRefreshTokenExpiry();
+
+            // Guardar sesión
+            const realIp = (req.headers['x-forwarded-for'] || req.ip || req.socket.remoteAddress) as string;
+            const { error: sessionError } = await supabase
+                .schema('usuario')
+                .from('tSesion')
+                .insert({
+                    id_usuario: user.id_usuario,
+                    refresh_token_hash: refreshTokenHash,
+                    ip_address: realIp,
+                    user_agent: req.headers['user-agent'] || 'Desconocido',
+                    expires_at: expiresAt,
+                    revoked: false
+                });
+
+            if (sessionError) {
+                await logError(req, sessionError, 'AuthController', 'verifyEmail', 'usuario', 'tSesion', user.id_usuario);
+            }
+
+            res.status(200).json({
+                message: "Correo verificado exitosamente",
+                    user: {
+                    id: user.id_usuario,
+                    nombre_usuario: user.nombre_usuario,
+                    correo_electronico: user.correo_electronico,
+                    correo_verificado: true
+                },
+                tokens: {
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                    expires_in: process.env.JWT_ACCESS_EXPIRES_IN
+                }
+            });
+
+        } catch (err: any) {
+            await logError(req, err, 'AuthController', 'verifyEmail', 'sistema', 'tCodigosVerificacion');
+            res.status(500).json({ error: "Error en el servidor" });
+        }
+    }
+
+    public async subscribe(req: Request, res: Response) {
+    try {
+        const user = (req as any).user;
+        if (!user || !user.id_usuario) {
+            return res.status(401).json({ message: "No autorizado" });
+        }
+
+        const { id_tipo_suscripcion, metodo_pago, ultimos_digitos, id_transaccion_gateway } = req.body;
+
+        // Validaciones
+        if (!id_tipo_suscripcion) {
+            return res.status(400).json({ message: "El tipo de suscripción es requerido" });
+        }
+        if (!metodo_pago) {
+            return res.status(400).json({ message: "El método de pago es requerido" });
+        }
+
+        // Obtener detalles del tipo de suscripción
+        const { data: tipoSuscripcion, error: tipoError } = await supabase
+            .schema('usuario')
+            .from('tTipoSuscripcion')
+            .select('id_tipo_suscripcion, nombre, duracion_dias, precio, moneda, activo')
+            .eq('id_tipo_suscripcion', id_tipo_suscripcion)
+            .eq('activo', true)
+            .single();
+
+        if (tipoError || !tipoSuscripcion) {
+            await logError(req, tipoError || new Error('Tipo de suscripción no encontrado'), 'AuthController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
+            return res.status(404).json({ message: "Plan de suscripción no válido" });
+        }
+
+        // Verificar si el usuario ya tiene una suscripción activa (estado = 'activa' y fecha_fin > NOW o NULL)
+        const { data: suscripcionActiva, error: activeError } = await supabase
+            .schema('usuario')
+            .from('tUsuarioSuscripcion')
+            .select('id_suscripcion, id_tipo_suscripcion, estado, fecha_fin')
+            .eq('id_usuario', user.id_usuario)
+            .eq('estado', 'activa')
+            .or('fecha_fin.is.null,fecha_fin.gt.now()')
+            .maybeSingle();
+
+        if (activeError) {
+            await logError(req, activeError, 'AuthController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
+            return res.status(500).json({ message: "Error al verificar suscripción activa" });
+        }
+
+        // Si tiene una suscripción activa, la cancelamos (cambiamos estado a 'cancelada')
+        if (suscripcionActiva?.id_suscripcion) {
+            const { error: cancelError } = await supabase
+                .schema('usuario')
+                .from('tUsuarioSuscripcion')
+                .update({ estado: 'cancelada', updated_at: new Date() })
+                .eq('id_suscripcion', suscripcionActiva.id_suscripcion);
+            if (cancelError) {
+                await logError(req, cancelError, 'AuthController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
+            }
+        }
+
+        const ahora = new Date();
+        let fechaFin = null;
+        if (tipoSuscripcion.duracion_dias !== null && tipoSuscripcion.duracion_dias > 0) {
+            fechaFin = new Date(ahora.getTime() + tipoSuscripcion.duracion_dias * 24 * 60 * 60 * 1000);
+        }
+
+        // Insertar nueva suscripción
+        const { data: nuevaSuscripcion, error: insertSubError } = await supabase
+            .schema('usuario')
+            .from('tUsuarioSuscripcion')
+            .insert({
+                id_usuario: user.id_usuario,
+                id_tipo_suscripcion: tipoSuscripcion.id_tipo_suscripcion,
+                fecha_inicio: ahora,
+                fecha_fin: fechaFin,
+                estado: 'activa',
+                created_at: ahora,
+                updated_at: null
+            })
+            .select()
+            .single();
+
+        if (insertSubError) {
+            await logError(req, insertSubError, 'AuthController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
+            return res.status(500).json({ message: "Error al crear la suscripción" });
+        }
+
+        // Insertar registro de pago
+        const { error: pagoError } = await supabase
+            .schema('usuario')
+            .from('tPago')
+            .insert({
+                id_suscripcion: nuevaSuscripcion.id_suscripcion,
+                monto: tipoSuscripcion.precio,
+                moneda: tipoSuscripcion.moneda,
+                fecha_pago: ahora,
+                metodo_pago: metodo_pago,
+                ultimos_digitos: ultimos_digitos || null,
+                id_transaccion_gateway: id_transaccion_gateway || null,
+                estado_pago: 'exitoso'
+            });
+
+        if (pagoError) {
+            await logError(req, pagoError, 'AuthController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
+        }
+
+        var prueba = false
+        if (tipoSuscripcion.id_tipo_suscripcion == 3)
+            prueba = true;
+
+        sendSubscriptionEmail(
+            user.correo_electronico,
+            user.nombre_usuario,
+            tipoSuscripcion.nombre,
+            tipoSuscripcion.precio,
+            tipoSuscripcion.moneda,
+            ahora,
+            fechaFin,
+            prueba
+        ).catch(err => {
+            console.error('Error al enviar correo de suscripción:', err);
+            logError(req, err, 'AuthController', 'sendSubscriptionEmail', 'usuario', 'lAcceso', user.id_usuario);
+        });
+
+        // Respuesta exitosa
+        res.status(201).json({
+            message: "Suscripción activada correctamente",
+            suscripcion: {
+                id: nuevaSuscripcion.id_suscripcion,
+                plan: tipoSuscripcion.nombre,
+                fecha_inicio: nuevaSuscripcion.fecha_inicio,
+                fecha_fin: nuevaSuscripcion.fecha_fin,
+                estado: nuevaSuscripcion.estado
+            }
+        });
+
+    } catch (err: any) {
+        await logError(req, err, 'AuthController', 'subscribe', 'usuario', 'lAcceso');
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+}
 
     // Método auxiliar para registrar intentos fallidos y posible bloqueo
     private async registrarIntentoFallido(id_usuario: number | null, req: Request) {

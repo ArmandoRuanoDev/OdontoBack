@@ -82,6 +82,19 @@ CREATE TABLE usuario."tUsuarioSuscripcion" (
     updated_at TIMESTAMP NULL
 );
 
+CREATE TABLE usuario."tPago" (
+    id_pago INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_suscripcion INT NOT NULL REFERENCES usuario."tUsuarioSuscripcion"(id_suscripcion) ON DELETE CASCADE,
+    monto DECIMAL(10,2) NOT NULL,
+    moneda CHAR(3) DEFAULT 'MXN',
+    fecha_pago TIMESTAMP DEFAULT NOW(),
+    metodo_pago VARCHAR(50), -- 'tarjeta', 'paypal', 'oxxo', etc.
+    ultimos_digitos VARCHAR(4), -- para tarjetas
+    id_transaccion_gateway VARCHAR(100), -- ID de Stripe, PayPal, etc.
+    estado_pago VARCHAR(20) CHECK (estado_pago IN ('exitoso', 'fallido', 'pendiente', 'reembolsado')),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_usuario_telefono ON usuario."tUsuario" (numero_telefono);
 CREATE INDEX IF NOT EXISTS idx_usuario_correo ON usuario."tUsuario" (correo_electronico);

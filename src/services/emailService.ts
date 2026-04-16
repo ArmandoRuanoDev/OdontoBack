@@ -75,50 +75,358 @@ async function sendEmail(to: string, subject: string, html: string) {
     }
 }
 
-// Al final del archivo emailService.ts, después de sendAuthCode
 
-/**
- * Envía un correo de bienvenida a un usuario recién registrado
- * @param to - Correo electrónico del destinatario
- * @param username - Nombre del usuario
- */
 export async function sendWelcomeEmail(to: string, username: string) {
-    const subject = '¡Bienvenido a Todonto! 🦷';
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #4CAF50; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Estamos muy contentos de darte la bienvenida a <strong>Todonto</strong>, tu asistente dental inteligente.</p>
-                <p>Con Todonto podrás:</p>
-                <ul>
-                    <li>📅 Agendar citas fácilmente</li>
-                    <li>🔔 Recibir recordatorios de tus tratamientos</li>
-                    <li>📊 Llevar el control de tu historial dental</li>
-                    <li>👨‍⚕️ Conectar con especialistas de confianza</li>
-                </ul>
-                <p>Para comenzar, explora nuestra plataforma y descubre todas las herramientas que tenemos para ti.</p>
-                <a href="${process.env.FRONTEND_URL}" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 20px;">Ir a Todonto</a>
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si no te registraste en Todonto, por favor ignora este correo.</p>
-            </div>
-        </div>
-    `;
-    await sendEmail(to, subject, html);
+  const subject = '¡Bienvenido a Todonto! Tu consulta dental, ahora en digital 🦷';
+
+  const html = `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bienvenido(a) a Todonto</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<!-- Preheader oculto -->
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Tu cuenta está lista. Comienza a transformar la gestión de tu consulta desde hoy.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Tu clínica dental digital
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Nos alegra mucho que estés aquí. Tu cuenta en <strong style="color:#185FA5;">Todonto</strong> ya está lista. A partir de hoy, gestionar tu consulta dental será mucho más sencillo, ordenado y humano.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Con Todonto puedes
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Feature: Agenda -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📅
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;">
+                                Agenda inteligente
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                Programa citas fácilmente con recordatorios automáticos para tus pacientes.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feature: Expedientes -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📋
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;">
+                                Expedientes clínicos
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                Historial completo por paciente: diagnósticos, tratamientos y radiografías.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feature: Pacientes -->
+              <tr>
+                <td style="padding-bottom:30px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    👥
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;">
+                                Registro de pacientes
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                Alta, búsqueda y seguimiento desde un solo lugar, sin papeleo.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- CTA -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <!--[if mso]>
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                    href="${process.env.FRONTEND_URL}" style="height:50px;v-text-anchor:middle;width:220px;" arcsize="20%"
+                    fillcolor="#185FA5" strokecolor="#185FA5">
+                    <w:anchorlock/>
+                    <center style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">
+                      Acceder a mi cuenta &rarr;
+                    </center>
+                  </v:roundrect>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                        <a class="cta-btn" href="${process.env.FRONTEND_URL}" target="_blank"
+                          style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
+                          Acceder a mi cuenta &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  <!--<![endif]-->
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:28px;">
+                  <span style="font-size:12px;color:#aaaaaa;font-family:Arial,Helvetica,sans-serif;">
+                    El acceso es válido por 48 horas.
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Tienes alguna pregunta? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                          — te respondemos en menos de 24 horas con gusto.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto &middot; Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Si no creaste esta cuenta, puedes ignorar este correo con seguridad.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
+  `;
+
+  await sendEmail(to, subject, html);
 }
 
 /**
  * Envía un correo de confirmación de suscripción
  * @param to - Correo del usuario
  * @param username - Nombre del usuario
- * @param plan - Nombre del plan (ej. "Mensual", "Anual")
- * @param price - Precio pagado
+ * @param plan - Nombre del plan (ej. "Mensual", "Anual", "Prueba")
+ * @param price - Precio pagado (puede ser 0 para periodo de prueba)
  * @param currency - Moneda (ej. "MXN")
- * @param startDate - Fecha de inicio (Timestamp)
- * @param endDate - Fecha de fin (Timestamp o null si es perpetua)
- * @param status - Estado de la suscripción (activa, pendiente, etc.)
+ * @param startDate - Fecha de inicio
+ * @param endDate - Fecha de fin (o null si es perpetua)
+ * @param isTrial - Indica si es un periodo de prueba gratuito
  */
 export async function sendSubscriptionEmail(
     to: string,
@@ -128,11 +436,12 @@ export async function sendSubscriptionEmail(
     currency: string,
     startDate: Date,
     endDate: Date | null,
-    status: string
+    isTrial: boolean = false
 ) {
-    const subject = '¡Gracias por tu suscripción a Todonto! 🎉';
-    
-    // Formatear fechas a formato local (México)
+    const subject = isTrial
+        ? '🎉 ¡Tu periodo de prueba en Todonto ha comenzado!'
+        : '¡Gracias por tu suscripción a Todonto! 🎉';
+
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
@@ -140,49 +449,394 @@ export async function sendSubscriptionEmail(
             day: 'numeric'
         });
     };
-    
+
     const startFormatted = formatDate(startDate);
     const endFormatted = endDate ? formatDate(endDate) : 'Nunca (suscripción de por vida)';
-    
+
     const priceFormatted = new Intl.NumberFormat('es-MX', {
         style: 'currency',
         currency: currency,
         minimumFractionDigits: 2
     }).format(price);
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #4CAF50; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
+
+    // Determinar ciclo de facturación según el nombre del plan
+    let billingCycle = '';
+    if (plan.toLowerCase().includes('mensual')) billingCycle = 'mes';
+    else if (plan.toLowerCase().includes('anual')) billingCycle = 'año';
+    else if (plan.toLowerCase().includes('prueba')) billingCycle = 'mes';
+    else billingCycle = 'período contratado';
+
+    // Texto adicional para periodo de prueba
+    let trialWarning = '';
+    if (isTrial) {
+        trialWarning = `
+            <div style="background-color:#FFF3E0; padding:14px 18px; border-radius:8px; margin:20px 0;">
+                <p style="margin:0; font-size:13px; color:#E65100;">
+                    <strong>⚠️ Importante:</strong> Tu periodo de prueba finaliza el <strong>${endFormatted}</strong>. Al término, se realizará automáticamente el cobro del plan mensual ($399.00MXN) a menos que cancele antes.
+                </p>
             </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>¡Felicidades! Tu suscripción a <strong>Todonto</strong> ha sido activada exitosamente.</p>
-                
-                <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <h3 style="margin-top: 0;">Detalles de tu plan</h3>
-                    <p><strong>Plan:</strong> ${plan}</p>
-                    <p><strong>Monto pagado:</strong> ${priceFormatted}</p>
-                    <p><strong>Fecha de inicio:</strong> ${startFormatted}</p>
-                    <p><strong>Fecha de expiración:</strong> ${endFormatted}</p>
-                    <p><strong>Estado:</strong> ${status === 'activa' ? 'Activa ✅' : status}</p>
-                </div>
-                
-                <p>Ahora tienes acceso a todos los beneficios exclusivos de <strong>${plan}</strong>. Disfruta de:</p>
-                <ul>
-                    <li>✔️ Acceso ilimitado a todas las funcionalidades</li>
-                    <li>✔️ Soporte prioritario</li>
-                    <li>✔️ Recordatorios personalizados</li>
-                </ul>
-                
-                <a href="${process.env.FRONTEND_URL}/dashboard" style="display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 20px;">Ir a mi cuenta</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si no realizaste esta compra, por favor contacta a soporte inmediatamente.</p>
-            </div>
-        </div>
-    `;
-    
+        `;
+    }
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${isTrial ? 'Comienza tu prueba' : 'Confirmación de suscripción'} - Todonto</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  ${isTrial ? 'Activa tu prueba gratuita por 7 días.' : 'Confirma los detalles de tu plan y la facturación automática.'}
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        🦷
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    ${isTrial ? 'Prueba gratuita' : 'Suscripción activa'}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    ${isTrial
+                        ? 'Tu periodo de prueba gratuito ha comenzado. Disfruta de todas las ventajas de Todonto durante 7 días.'
+                        : '¡Felicidades! Tu suscripción a <strong style="color:#185FA5;">Todonto</strong> ha sido activada exitosamente.'}
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles de tu plan
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Detalles del plan (estilo feature) -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📋
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Plan contratado</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${plan}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Monto y fechas -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💰
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Monto</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${priceFormatted} (${currency})</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📅
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Fecha de inicio</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${startFormatted}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:10px;border-left:3px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#185FA5;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    ⏳
+                                  </td>
+                                <tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#0C447C;">Fecha de expiración</p>
+                              <p style="margin:0;font-size:13px;color:#185FA5;">${endFormatted}</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Advertencia de prueba -->
+              ${trialWarning}
+
+              <!-- Información legal y facturación -->
+              <tr>
+                <td style="padding-bottom:20px;">
+                  <div style="background-color:#F9F9F9; padding:14px 18px; border-radius:8px; border:1px solid #E0E0E0;">
+                    <p style="margin:0 0 8px; font-size:13px; color:#555;">
+                      <strong>🔁 Facturación automática:</strong> Tu suscripción se renovará automáticamente cada <strong>${billingCycle}</strong> utilizando el método de pago que proporcionaste. Recibirás un recibo por cada cargo.
+                    </p>
+                    <p style="margin:0; font-size:13px; color:#555;">
+                      <strong>Cancelación:</strong> Puedes cancelar en cualquier momento desde tu perfil. Al cancelar, no se realizarán cargos futuros y seguirás teniendo acceso hasta la fecha de expiración.
+                      <br/>
+                      <a href="${process.env.FRONTEND_URL}/perfil/cancelar-suscripcion" style="color:#185FA5; text-decoration:underline;">Cancelar suscripción →</a>
+                    </p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- CTA Botón principal -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                        <a href="${process.env.FRONTEND_URL}/dashboard" target="_blank"
+                          style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 40px;border-radius:10px;text-align:center;">
+                          Ir a mi cuenta &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte y términos -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Tienes alguna pregunta? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                          — te respondemos en menos de 24 horas.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding-top:12px;">
+                  <p style="margin:0;font-size:12px;color:#999;line-height:1.5;">
+                    Al suscribirte, aceptas nuestros 
+                    <a href="${process.env.FRONTEND_URL}/terminos" style="color:#185FA5;text-decoration:underline;">Términos y Condiciones</a> 
+                    y 
+                    <a href="${process.env.FRONTEND_URL}/privacidad" style="color:#185FA5;text-decoration:underline;">Aviso de Privacidad</a>.
+                    Los cargos se procesarán automáticamente según el ciclo seleccionado. Puedes cancelar en cualquier momento desde tu perfil.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    ${isTrial ? 'Al finalizar la prueba se cobrará el plan mensual automáticamente.' : 'Recibirás un recibo por cada cargo.'}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 
@@ -301,25 +955,249 @@ export async function sendTrialReminderEmail(
 }
 
 /**
- * Envía un código de autenticación de 6 dígitos (para verificación de correo, 2FA, etc.)
+ * Envía un código de verificación de 6 dígitos (para verificación de correo.)
  * @param to - Correo electrónico del destinatario
  * @param code - Código de 6 dígitos
- * @param username - Nombre del usuario
+ * @param username - Nombre del usuario (opcional)
  */
-export async function sendAuthCode(to: string, code: string, username?: string) {
-    const subject = 'Código de autenticación';
-    const html = `
-        <div style="font-family: Arial, sans-serif;">
-            <h2>${username ? `Hola, ${username}` : 'Hola'}!</h2>
-            <p>Tu código de autenticación es:</p>
-            <h1 style="font-size: 32px; letter-spacing: 5px;">${code}</h1>
-            <p>Este código expira en 10 minutos.</p>
-            <p>Si no solicitaste este código, ignora este mensaje.</p>
-        </div>
-    `;
+export async function sendCodeVerificationEmail(to: string, code: string, username?: string) {
+    const subject = '🔐 Código de verificación - Todonto';
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verifica tu correo - Todonto</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+      .code-block     { font-size: 28px !important; letter-spacing: 4px !important; padding: 12px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<!-- Preheader oculto -->
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Usa este código para verificar tu dirección de correo.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#185FA5;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#0C447C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        ✉️
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Verifica tu correo
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Todonto · Seguridad de tu cuenta
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #B5D4F4;border-right:1px solid #B5D4F4;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#0C447C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ${username ? `¡Hola, ${username}! 👋` : '¡Hola! 👋'}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Para confirmar tu dirección de correo electrónico y activar tu cuenta en <strong style="color:#185FA5;">Todonto</strong>, utiliza el siguiente código de verificación.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#185FA5;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#B5D4F4;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#185FA5;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Tu código de seguridad
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Bloque del código -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#E6F1FB;border-radius:14px;border-left:4px solid #185FA5;">
+                    <tr>
+                      <td class="feature-inner" style="padding:20px 24px;text-align:center;">
+                        <span class="code-block" style="font-size:38px;font-weight:bold;letter-spacing:6px;color:#0C447C;font-family:monospace;display:inline-block;background-color:#ffffff;padding:16px 24px;border-radius:12px;border:1px solid #B5D4F4;">
+                          ${code}
+                        </span>
+                        <p style="margin:16px 0 0 0;font-size:13px;color:#185FA5;font-family:Arial,Helvetica,sans-serif;">
+                          Este código expira en <strong>10 minutos</strong>.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Instrucciones -->
+              <tr>
+                <td style="padding-bottom:30px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#F4F9FF;border-radius:10px;">
+                    <tr>
+                      <td class="feature-inner" style="padding:18px 20px;">
+                        <p style="margin:0 0 8px 0;font-size:14px;font-weight:bold;color:#0C447C;">
+                          🔍 ¿Cómo usar este código?
+                        </p>
+                        <p style="margin:0;font-size:13px;color:#555555;line-height:1.55;">
+                          1. Ingresa el código en la pantalla de verificación de Todonto.<br/>
+                          2. Una vez verificado, tu cuenta quedará completamente activa.<br/>
+                          3. Si no solicitaste este cambio, ignora este correo.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #B5D4F4;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#E6F1FB;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿No recibiste el código? Revisa tu bandeja de spam o contacta a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un mensaje automático, por favor no responder.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
-
 /**
  * Envía un correo con un código de 6 dígitos para restablecer la contraseña
  * @param to - Correo del destinatario
@@ -356,7 +1234,6 @@ export async function sendPasswordResetCode(to: string, username: string, code: 
  * @param ip - Dirección IP del inicio de sesión
  * @param userAgent - Agente de usuario (dispositivo/navegador)
  * @param loginTime - Fecha y hora del inicio de sesión
- * @param reportLink - Enlace para reportar actividad sospechosa (opcional)
  */
 export async function sendSecurityAlertEmail(
     to: string,
@@ -364,10 +1241,9 @@ export async function sendSecurityAlertEmail(
     ip: string,
     userAgent: string,
     loginTime: Date,
-    reportLink?: string
 ) {
     const subject = '🔐 Alerta de seguridad: Nuevo inicio de sesión en Todonto';
-    
+
     const formatDateTime = (date: Date) => {
         return date.toLocaleDateString('es-MX', {
             year: 'numeric',
@@ -378,46 +1254,373 @@ export async function sendSecurityAlertEmail(
             second: '2-digit'
         });
     };
-    
+
     const timeFormatted = formatDateTime(loginTime);
-    
-    // Extraer información básica del userAgent (opcional)
     const device = userAgent.includes('Mobile') ? 'Móvil' : 'Ordenador';
     const browser = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)/)?.[0] || 'Desconocido';
-    
-    const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #f44336; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="color: white; margin: 0;">Todonto</h1>
-            </div>
-            <div style="background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <h2>¡Hola, ${username}!</h2>
-                <p>Hemos detectado un nuevo inicio de sesión en tu cuenta de <strong>Todonto</strong>.</p>
-                
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0 0 10px 0;"><strong>📅 Fecha y hora:</strong> ${timeFormatted}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>🌐 Dirección IP:</strong> ${ip}</p>
-                    <p style="margin: 0 0 10px 0;"><strong>💻 Dispositivo:</strong> ${device}</p>
-                    <p style="margin: 0;"><strong>🔍 Navegador:</strong> ${browser}</p>
-                </div>
-                
-                <p><strong>¿No reconoces esta actividad?</strong> Alguien más podría estar accediendo a tu cuenta.</p>
-                <p>Te recomendamos:</p>
-                <ul>
-                    <li>Cambiar tu contraseña inmediatamente</li>
-                    <li>Revisar los dispositivos conectados en tu perfil</li>
-                    <li>Contactar a soporte si ves actividad sospechosa</li>
-                </ul>
-                
-                ${reportLink ? `<a href="${reportLink}" style="display: inline-block; background-color: #f44336; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Reportar como no reconocido</a>` : ''}
-                <a href="${process.env.FRONTEND_URL}/perfil/seguridad" style="display: inline-block; background-color: #2196F3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 10px; margin-left: 10px;">Ir a seguridad</a>
-                
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
-                <p style="color: #777; font-size: 12px;">Si fuiste tú, ignora este mensaje. De lo contrario, actúa de inmediato.</p>
-            </div>
-        </div>
-    `;
-    
+
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alerta de seguridad - Todonto</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; background-color: #f0f4f8; }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-header   { padding: 28px 20px !important; }
+      .email-body     { padding: 24px 20px !important; }
+      .email-footer   { padding: 20px !important; }
+      .feature-inner  { padding: 14px !important; }
+      .cta-btn        { display: block !important; text-align: center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+<!-- Preheader oculto -->
+<div style="display:none;font-size:1px;color:#f0f4f8;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Nuevo acceso detectado. Verifica si eres tú.
+</div>
+
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <table class="email-wrapper" role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;">
+
+        <!-- ===== HEADER (color alerta) ===== -->
+        <tr>
+          <td class="email-header" align="center"
+            style="background-color:#D32F2F;padding:36px 40px 30px;border-radius:14px 14px 0 0;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" width="54" height="54"
+                        style="background-color:#B71C1C;border-radius:14px;text-align:center;vertical-align:middle;font-size:26px;line-height:54px;width:54px;height:54px;">
+                        ⚠️
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:#ffffff;font-size:24px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;letter-spacing:-0.3px;">
+                    Alerta de seguridad
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.7);font-size:11px;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Todonto · Protege tu cuenta
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== BODY ===== -->
+        <tr>
+          <td class="email-body"
+            style="background-color:#ffffff;padding:36px 40px;border-left:1px solid #F5C6C6;border-right:1px solid #F5C6C6;">
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Saludo -->
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <span style="font-size:22px;font-weight:bold;color:#B71C1C;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                    ¡Hola, ${username}! 👋
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <p style="margin:0;font-size:15px;color:#555555;line-height:1.75;font-family:Arial,Helvetica,sans-serif;">
+                    Hemos detectado un <strong style="color:#D32F2F;">nuevo inicio de sesión</strong> en tu cuenta de <strong style="color:#185FA5;">Todonto</strong>. Si fuiste tú, puedes ignorar este mensaje. Si no, te recomendamos tomar acción de inmediato.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Divisor bicolor -->
+              <tr>
+                <td style="padding-bottom:24px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="35%" height="3" style="background-color:#D32F2F;font-size:0;line-height:0;">&nbsp;</td>
+                      <td width="65%" height="3" style="background-color:#F5C6C6;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Etiqueta sección -->
+              <tr>
+                <td style="padding-bottom:14px;">
+                  <span style="font-size:11px;font-weight:bold;color:#D32F2F;font-family:Arial,Helvetica,sans-serif;letter-spacing:1.2px;text-transform:uppercase;">
+                    Detalles del acceso
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Feature: Fecha y hora -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF5F5;border-radius:10px;border-left:3px solid #D32F2F;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#D32F2F;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    📅
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#B71C1C;font-family:Arial,Helvetica,sans-serif;">
+                                Fecha y hora
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#555;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                ${timeFormatted}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feature: IP -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF5F5;border-radius:10px;border-left:3px solid #D32F2F;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#D32F2F;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🌐
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#B71C1C;font-family:Arial,Helvetica,sans-serif;">
+                                Dirección IP
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#555;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                ${ip}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Feature: Dispositivo -->
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF5F5;border-radius:10px;border-left:3px solid #D32F2F;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#D32F2F;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    💻
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#B71C1C;font-family:Arial,Helvetica,sans-serif;">
+                                Dispositivo y navegador
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#555;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                ${device} · ${browser}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Sección de recomendaciones -->
+              <tr>
+                <td style="padding-bottom:30px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"
+                    style="background-color:#FFF5F5;border-radius:10px;border-left:3px solid #D32F2F;">
+                    <tr>
+                      <td class="feature-inner" style="padding:16px 18px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td width="52" style="vertical-align:top;padding-right:14px;">
+                              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td align="center" width="38" height="38"
+                                    style="background-color:#D32F2F;border-radius:10px;text-align:center;vertical-align:middle;font-size:18px;line-height:38px;width:38px;height:38px;">
+                                    🛡️
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                            <td style="vertical-align:top;">
+                              <p style="margin:0 0 3px;font-size:14px;font-weight:bold;color:#B71C1C;font-family:Arial,Helvetica,sans-serif;">
+                                ¿No reconoces esta actividad?
+                              </p>
+                              <p style="margin:0;font-size:13px;color:#555;font-family:Arial,Helvetica,sans-serif;line-height:1.55;">
+                                Alguien más podría estar accediendo a tu cuenta. Te recomendamos:
+                              </p>
+                              <ul style="margin:8px 0 0 20px;padding:0;font-size:13px;color:#555;">
+                                <li>Cambiar tu contraseña inmediatamente</li>
+                                <li>Revisar los dispositivos conectados en tu perfil</li>
+                                <li>Contactar a soporte si ves actividad sospechosa</li>
+                              </ul>
+                             </td>
+                           </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- CTA Botones -->
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="display:inline-block;">
+                    <tr>
+                      <td style="width:12px;"></td>
+                      <td align="center" style="background-color:#185FA5;border-radius:10px;">
+                        <a href="${process.env.FRONTEND_URL}/perfil/seguridad" target="_blank"
+                          style="display:inline-block;background-color:#185FA5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:15px 30px;border-radius:10px;text-align:center;">
+                          Ir a seguridad
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:28px;">
+                  <span style="font-size:12px;color:#aaaaaa;font-family:Arial,Helvetica,sans-serif;">
+                    Si fuiste tú, ignora este mensaje. De lo contrario, actúa de inmediato.
+                  </span>
+                </td>
+              </tr>
+
+              <!-- Divisor -->
+              <tr>
+                <td style="border-top:1px solid #F5C6C6;padding-top:20px;padding-bottom:0;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+
+              <!-- Soporte -->
+              <tr>
+                <td style="padding-top:4px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="36" style="vertical-align:top;padding-right:12px;padding-top:2px;">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center" width="30" height="30"
+                              style="background-color:#FFF5F5;border-radius:50%;text-align:center;vertical-align:middle;font-size:14px;line-height:30px;width:30px;height:30px;">
+                              ℹ️
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;">
+                        <p style="margin:0;font-size:13px;color:#777777;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                          ¿Tienes alguna pregunta? Escríbenos a
+                          <a href="mailto:soporte@todonto.com" style="color:#185FA5;text-decoration:none;font-weight:bold;">
+                            soporte@todonto.com
+                          </a>
+                          — te respondemos en menos de 24 horas con gusto.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- ===== FOOTER ===== -->
+        <tr>
+          <td class="email-footer" align="center"
+            style="background-color:#042C53;padding:24px 40px;border-radius:0 0 14px 14px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding-bottom:8px;">
+                  <span style="color:rgba(255,255,255,0.55);font-size:13px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">
+                    🦷 Todonto
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:4px;">
+                  <span style="color:rgba(255,255,255,0.35);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    &copy; 2026 Todonto · Todos los derechos reservados
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <span style="color:rgba(255,255,255,0.22);font-size:11px;font-family:Arial,Helvetica,sans-serif;">
+                    Este es un aviso de seguridad automático.
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>`;
+
     await sendEmail(to, subject, html);
 }
 

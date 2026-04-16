@@ -8,18 +8,16 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
     process.exit(1);
 }
 
-import { sendAccountBlockedAlert, sendAccountUpdateAlert, sendCancellationEmail, sendPasswordChangedConfirmation, sendPasswordResetCode, sendSecurityAlertEmail, sendSubscriptionEmail, sendSubscriptionReceipt, sendTrialReminderEmail, sendWelcomeEmail } from '../services/emailService';
+import { sendCodeVerificationEmail, sendWelcomeEmail } from '../services/emailService';
 import { generateSixDigitCode } from '../util/codeGenerator';
 
 async function testEmail() {
     try {
         const email = 'ruanoarmando54@gmail.com';
+        const username = 'Armando';
         const code = generateSixDigitCode();
-        const username = 'UsuarioPrueba';
 
-        console.log(`Enviando código ${code} a ${email}...`);
-        await sendAccountBlockedAlert(email, username, 15, 5, new Date(), 'null', 'null'
-        );
+        await sendCodeVerificationEmail(email, code, username);
         console.log('Correo enviado exitosamente. Revisa tu bandeja (o spam).');
     } catch (error) {
         console.error('Error al enviar:', error);
@@ -28,4 +26,4 @@ async function testEmail() {
 
 testEmail();
 
-// npx ts-node src/scripts/welcomeEmail.test.ts
+// npx ts-node scripts/codeVerificationEmail.test.ts
