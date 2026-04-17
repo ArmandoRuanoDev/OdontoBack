@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { authController } from "../controllers/authController";
 import rateLimit from 'express-rate-limit';
-import { authMiddleware } from "../middlewares/authMiddleware";
 
 const registerLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos

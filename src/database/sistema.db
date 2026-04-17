@@ -23,6 +23,7 @@ CREATE TABLE sistema."tCodigosVerificacion" (
 CREATE INDEX idx_log_fecha ON sistema."lSistema" (fecha_error_log);
 CREATE INDEX idx_log_usuario ON sistema."lSistema" (id_usuario);
 CREATE INDEX idx_log_ip ON sistema."lSistema" (ip_address);
+
 CREATE INDEX idx_codigos_usuario ON sistema."tCodigosVerificacion" (id_usuario);
 CREATE INDEX idx_codigos_codigo ON sistema."tCodigosVerificacion" (codigo);
 CREATE INDEX idx_codigos_expira ON sistema."tCodigosVerificacion" (expira) WHERE usado = FALSE;
