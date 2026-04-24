@@ -1,6 +1,7 @@
 import express, { Application } from "express";
 import AuthRoutes from "./routes/authRoutes"; 
 import SubscribeRoutes from "./routes/subscribeRoutes";
+import PatientRoutes from "./routes/patientRoutes";
 import morgan from "morgan";
 import cors from "cors";
 
@@ -15,9 +16,15 @@ class Server {
     }    
 
     config() : void {
+        const corsOptions = {
+            origin: 'http://localhost:4200', // Frontend
+            credentials: true,
+            optionsSuccessStatus: 200
+        };
+
         this.app.set('port', process.env.PORT || 3000);
         this.app.use(morgan('dev'));
-        this.app.use(cors());
+        this.app.use(cors(corsOptions));
         this.app.use(express.json());
         this.app.use(express.urlencoded({extended : false}));
     }
@@ -25,6 +32,7 @@ class Server {
     routes() : void {
         this.app.use("/api/auth", AuthRoutes);
         this.app.use("/api/sub", SubscribeRoutes);
+        this.app.use("/api/pat", PatientRoutes);
     }
 
     start(): void {

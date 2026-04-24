@@ -15,7 +15,7 @@ CREATE TABLE usuario."tUsuario" (
     numero_telefono VARCHAR(13) NOT NULL,
     foto_perfil TEXT,
     fecha_nacimiento DATE,
-    sexo_usuario CHAR(1) CHECK (sexo_usuario IN ('M','F')),
+    sexo_usuario CHAR(1) CHECK (sexo_usuario IN ('M','F','O')),
     contrasena_hash TEXT NOT NULL,
     acepta_aviso_privacidad BOOLEAN DEFAULT FALSE,
     fecha_aceptacion_aviso TIMESTAMP,

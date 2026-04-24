@@ -376,7 +376,7 @@ class AuthController {
                     const { error: revokeError } = await supabase
                         .schema('usuario')
                         .from('tSesion')
-                        .update({ revoked: true, revoked_at: ahora, updated_at: ahora })
+                        .update({ revoked: true, revoked_at: ahora })
                         .in('id_sesion', idsToRevoke);
 
                     if (revokeError) {

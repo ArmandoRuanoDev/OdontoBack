@@ -5,7 +5,7 @@ export interface RegisterUser {
     correo_electronico: string;
     numero_telefono: string;
     fecha_nacimiento?: Date;
-    sexo_usuario?: 'M' | 'F';
+    sexo_usuario?: 'M' | 'F' | 'O';
     contrasena: string;
     id_rol_usuario?: number;
     acepta_aviso_privacidad: boolean;
