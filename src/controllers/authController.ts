@@ -16,6 +16,10 @@ class AuthController {
         this.registrarIntentoFallido = this.registrarIntentoFallido.bind(this);
     }
 
+    /**
+     * POST /api/auth/register
+     * Crea un nuevo usuario en el sistema.
+     */
     public async register(req: Request, res: Response) {
         try {
             const user: RegisterUser = req.body;
@@ -29,40 +33,91 @@ class AuthController {
                 fecha_nacimiento,
                 sexo_usuario,
                 contrasena,
-                id_rol_usuario,
                 acepta_aviso_privacidad,
                 acepta_terminos_condiciones
             } = user;
 
+            // Limpieza de variables
+            const nombre = nombre_usuario?.trim().replace(/\s+/g, ' ');;
+            const aPaterno = apellido_paterno?.trim();
+            const aMaterno = apellido_materno?.trim();
+            const correo = correo_electronico?.trim().toLowerCase();
+            const telefono = numero_telefono?.trim().replace(/[^\d+]/g, '');
+
             const errores = [];
             const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
             const telefonoRegex = /^\+?[0-9]{10,13}$/;
-            const usernameRegex = /^[a-zA-Z]+(?: [a-zA-Z]+)*$/;
+            const nombreRegex = /^[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+)*$/;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,70}$/;
 
             // Validaciones básicas
-            if (!nombre_usuario || !correo_electronico || !contrasena || !numero_telefono) {
-                errores.push("Los campos nombre_usuario, correo_electronico, numero_telefono y contrasena son obligatorios");
-            } else if (nombre_usuario.length < 5 || nombre_usuario.length > 50) {
-                errores.push("El nombre de usuario debe tener entre 5 y 50 caracteres");
-            } else if (correo_electronico.length < 10 || correo_electronico.length > 100) {
+            if (!nombre || !aPaterno || !correo || !contrasena || !telefono) {
+                errores.push("Los campos nombre_usuario, apellido_paterno, correo_electronico, numero_telefono y contraseña son obligatorios");
+            }
+
+            if (nombre.length < 3 || nombre.length > 50) {
+                errores.push("El nombre de usuario debe tener entre 3 y 50 caracteres");
+            }
+
+            if (aPaterno!.length < 5 || aPaterno!.length > 50) {
+                errores.push("El apellido paterno debe tener entre 5 y 50 caracteres");
+            }
+
+            if (correo.length < 10 || correo.length > 100) {
                 errores.push("El correo electrónico debe tener entre 10 y 100 caracteres");
-            } else if (numero_telefono.length < 10 || numero_telefono.length > 13) {
+            }
+
+            if (telefono.length < 10 || telefono.length > 13) {
                 errores.push("El número de teléfono debe tener entre 10 y 13 caracteres");
-            } else if (contrasena.length < 8 || contrasena.length > 100) {
-                errores.push("La contraseña debe tener entre 8 y 100 caracteres");
-            } else if (!emailRegex.test(correo_electronico)) { // Validación de formato de email.
+            }
+
+            if (contrasena.length < 8) {
+                errores.push("La contraseña debe tener más de 8 caracteres");
+            }
+
+            if (contrasena.length > 70) {
+                errores.push("La contraseña debe tener menos de 70 caracteres");
+            }
+
+            if (!passwordRegex.test(contrasena)) {
+                errores.push("La contraseña debe tener al menos una letra mayuscula, una letra minuscula, un número, un caracter especial y sin espacios");
+            }
+
+            if (!emailRegex.test(correo)) { // Validación de formato de email.
                 errores.push("El correo electrónico no tiene un formato válido");
-            } else if (!telefonoRegex.test(numero_telefono)) { // Validación de formato de teléfono.
+            }
+
+            if (!telefonoRegex.test(telefono)) { // Validación de formato de teléfono.
                 errores.push("El teléfono debe contener solo números y entre 10 y 13 dígitos");
-            } else if (!usernameRegex.test(nombre_usuario)) { // Validación de formato de nombre de usuario.
+            }
+
+            if (!nombreRegex.test(nombre)) { // Validación de formato de nombre de usuario.
                 errores.push("El nombre de usuario solo puede contener letras y espacios");
-            } else if (fecha_nacimiento) {
-                const fechaObj = new Date(fecha_nacimiento);
-                if (isNaN(fechaObj.getTime())) {
+            }
+
+            if (fecha_nacimiento) {
+                const nacimiento = new Date(fecha_nacimiento);
+                if (isNaN(nacimiento.getTime())) {
                     errores.push("La fecha de nacimiento no es válida");
                 } else {
-                    const edad = new Date().getFullYear() - fechaObj.getFullYear();
-                    if (edad < 18) errores.push("Debes ser mayor de 18 años");
+                    const hoy = new Date();
+                    if (nacimiento > hoy) {
+                        errores.push("La fecha no puede ser futura")
+                    }
+                    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+                    if (edad > 110) {
+                        errores.push("La edad no puede ser mayor a 110 años")
+                    }
+                    const aunNoCumple =
+                        hoy.getMonth() < nacimiento.getMonth() ||
+                            (
+                                hoy.getMonth() === nacimiento.getMonth() &&
+                                hoy.getDate() < nacimiento.getDate()
+                            );
+                    if (aunNoCumple) edad--;
+                    if (edad < 18) {
+                        errores.push("Debes ser mayor de 18 años");
+                    }
                 }
             }
 
@@ -74,11 +129,6 @@ class AuthController {
                 return res.status(400).json({ errors: errores });
             }
 
-            // Normalizar datos
-            const correo_normalizado = correo_electronico.toLowerCase().trim();
-            const telefono_limpio = numero_telefono.replace(/\s/g, '');
-            const nombre_limpio = nombre_usuario.trim();
-
             // Hash de contraseña
             let contrasena_hash: string;
             try {
@@ -89,16 +139,16 @@ class AuthController {
                 return res.status(500).json({ message: "Error interno al procesar la contraseña" });
             }
 
-            const defaultRole = parseInt(process.env.DEFAULT_ROLE_ID || '2');
-            const rolFinal = id_rol_usuario || defaultRole;
+            const defaultRole = Number(process.env.DEFAULT_ROLE_ID || 2);
+            const rolFinal = defaultRole;
 
             const { data, error } = await  supabase.schema('usuario')
             .rpc('registrar_usuario', {
-                _nombre_usuario: nombre_limpio,
-                _apellido_paterno: apellido_paterno || null,
-                _apellido_materno: apellido_materno || null,
-                _correo_electronico: correo_normalizado,
-                _numero_telefono: telefono_limpio,
+                _nombre_usuario: nombre,
+                _apellido_paterno: aPaterno || null,
+                _apellido_materno: aMaterno || null,
+                _correo_electronico: correo,
+                _numero_telefono: telefono,
                 _fecha_nacimiento: fecha_nacimiento || null,
                 _sexo_usuario: sexo_usuario || null,
                 _contrasena_hash: contrasena_hash,
@@ -119,69 +169,7 @@ class AuthController {
             const nuevoUsuario = data;
             const userId = nuevoUsuario.id;
 
-            // Obtener el rol real del usuario
-            const { data: userWithRole, error: roleError } = await supabase
-                .schema('usuario')
-                .from('tUsuario')
-                .select('id_rol_usuario')
-                .eq('id_usuario', userId)
-                .single();
-
-            if (roleError) {
-                await logError(req, roleError, 'AuthController', 'register', 'usuario', 'lAcceso', userId);
-            }
-            const id_rol = userWithRole?.id_rol_usuario || rolFinal;
-
-            const { error: updateAccesoError } = await supabase
-                .schema('usuario')
-                .from('tAcceso')
-                .update({ ultimo_acceso: new Date() })
-                .eq('id_usuario', userId);
-
-            if (updateAccesoError) {
-                await logError(req, updateAccesoError, 'AuthController', 'register_update_acceso', 'usuario', 'lAcceso',userId);
-            }
-
-            // Preparar payload del token
-            const tokenPayload: TokenPayload = {
-                id_usuario: userId,
-                nombre_usuario: nuevoUsuario.nombre_usuario,
-                correo_electronico: nuevoUsuario.correo_electronico,
-                id_rol_usuario: id_rol
-            };
-
-            // Generar tokens
-            const accessToken = generateAccessToken(tokenPayload);
-            const refreshToken = generateRefreshToken(tokenPayload);
-            const refreshTokenHash = await hashRefreshToken(refreshToken);
-            const expiresAt = getRefreshTokenExpiry();
-
-            // Guardar sesión en tSesion
-            const { error: sessionError } = await supabase
-                .schema('usuario')
-                .from('tSesion')
-                .insert({
-                    id_usuario: userId,
-                    refresh_token_hash: refreshTokenHash,
-                    ip_address: req.ip || req.socket.remoteAddress,
-                    user_agent: req.headers['user-agent'],
-                    expires_at: expiresAt,
-                    revoked: false
-                });
-
-            if (sessionError) {
-                await logError(req, sessionError, 'AuthController', 'register', 'usuario', 'lAcceso', userId);
-                // Aunque falle la sesión, el usuario ya está creado.
-                // Se responde error para que el cliente reintente (pero el usuario ya existe)
-                return res.status(500).json({ message: "Usuario creado pero error al iniciar sesión automática" });
-            }
-
-            sendWelcomeEmail(correo_normalizado, nombre_limpio).catch(err => {
-                console.error('Error al enviar correo de bienvenida:', err);
-                logError(req, err, 'AuthController', 'sendWelcomeEmail', 'usuario', 'lAcceso', userId);
-            });
-
-            // Respuesta exitosa con tokens
+            // Respuesta exitosa de registro
             res.status(201).json({
                 message: "Usuario registrado exitosamente",
                 user: {
@@ -189,18 +177,19 @@ class AuthController {
                     nombre_usuario: nuevoUsuario.nombre_usuario,
                     correo_electronico: nuevoUsuario.correo_electronico
                 },
-                tokens: {
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                    expires_in: process.env.JWT_ACCESS_EXPIRES_IN
-                }
+                next_step: "verify-email"
             });
+
         } catch (err: any) {
             await logError(req, err, 'AuthController', 'register', 'usuario', 'lAcceso');
             res.status(500).json({ error: "Error en el servidor" });
         }
     }
 
+    /**
+     * POST /api/auth/login
+     * Inicio de sesión de usuario existente.
+     */
     public async login(req: Request, res: Response) {
         try {
             const { correo, contrasena } = req.body;
@@ -212,8 +201,8 @@ class AuthController {
             const { data: user, error: userError } = await supabase
                 .schema('usuario')
                 .from('tUsuario')
-                .select('id_usuario, nombre_usuario, correo_electronico, contrasena_hash, id_rol_usuario')
-                .eq('correo_electronico', correo)
+                .select('id_usuario, nombre_usuario, correo_electronico, correo_verificado, contrasena_hash, id_rol_usuario')
+                .eq('correo_electronico', correo.toLowerCase().trim())
                 .maybeSingle();
 
             if (userError) {
@@ -250,6 +239,10 @@ class AuthController {
                 return res.status(401).json({ message: "Credenciales inválidas" });
             }
 
+            if (user.correo_verificado == false) {
+                return res.status(403).json({ message: "El correo no está verificado"})
+            }
+
             // Login exitoso
             const ahora = new Date();
             const { error: updateError } = await supabase
@@ -279,7 +272,6 @@ class AuthController {
                 userAgent,
                 ahora
             ).catch(err => {
-                console.error('Error al enviar alerta de seguridad:', err);
                 logError(req, err, 'AuthController', 'sendSecurityAlertEmail', 'usuario', 'lAcceso', user.id_usuario);
             });
 
@@ -424,6 +416,10 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/send-verification-code
+     * Envía código de verificación para validar correo.
+     */
     public async sendVerificationCode(req: Request, res: Response) {
         try {
             const { correo } = req.body;
@@ -448,7 +444,7 @@ class AuthController {
                 return res.status(400).json({ message: "El correo ya ha sido verificado" });
             }
 
-            // Eliminar códigos anteriores no usados del mismo usuario (opcional, para evitar acumulación)
+            // Eliminar códigos anteriores no usados del mismo usuario.
             await supabase
                 .schema('sistema')
                 .from('tCodigosVerificacion')
@@ -486,6 +482,10 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/verify-email
+     * Verifica el código de verificación para validar correo.
+     */
     public async verifyEmail(req: Request, res: Response) {
         try {
             const { correo, codigo } = req.body;
@@ -581,6 +581,10 @@ class AuthController {
                 await logError(req, sessionError, 'AuthController', 'verifyEmail', 'usuario', 'tSesion', user.id_usuario);
             }
 
+            sendWelcomeEmail(correo, user.nombre_usuario).catch(err => {
+                logError(req, err, 'AuthController', 'sendWelcomeEmail', 'usuario', 'lAcceso', user.id_usuario);
+            });
+
             res.status(200).json({
                 message: "Correo verificado exitosamente",
                     user: {
@@ -602,6 +606,10 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/send-password-reset-code
+     * Envía código de verificación para cambiar contraseña.
+     */
     public async sendChangePasswordCode(req: Request, res: Response) {
         try {
             const { correo } = req.body;
@@ -680,6 +688,10 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/verify-password-code
+     * Verifica el código de verificación para cambiar contraseña.
+     */
     public async verifyPasswordCode(req: Request, res: Response) {
         try {
             const { correo, codigo } = req.body;
@@ -750,9 +762,14 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/reset-password
+     * Cambia la contraseña de usuario existente.
+     */
     public async resetPassword(req: Request, res: Response) {
         try {
             const { reset_token, nueva_contrasena } = req.body;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,70}$/;
 
             if (!reset_token || !nueva_contrasena) {
                 return res.status(400).json({ message: "Token y nueva contraseña son obligatorios" });
@@ -761,6 +778,10 @@ class AuthController {
             // Validar fortaleza de la nueva contraseña
             if (nueva_contrasena.length < 8) {
                 return res.status(400).json({ message: "La contraseña debe tener al menos 8 caracteres" });
+            } else if (nueva_contrasena.length > 70) {
+                return res.status(400).json({ message: "La contraseña debe tener menos de 70 caracteres" });
+            } else if (!passwordRegex.test(nueva_contrasena)) {
+                return res.status(400).json({ message: "La contraseña debe tener al menos una letra mayuscula, una letra minuscula, un número, un caracter especial y sin espacios" });
             }
 
             // Verificar token JWT
@@ -852,7 +873,6 @@ class AuthController {
                 user.nombre_usuario,
                 ahora
             ).catch(err => {
-                console.error('Error al enviar correo de confirmación de cambio de contraseña:', err);
                 logError(req, err, 'AuthController', 'sendPasswordChangedConfirmation', 'usuario', 'lAcceso', userId);
             });
 
@@ -866,6 +886,10 @@ class AuthController {
         }
     }
 
+    /**
+     * POST /api/auth/refresh-token
+     * Actualiza token para mantener sesión activa.
+     */
     public async refreshToken(req: Request, res: Response) {
         try {
             const { refresh_token } = req.body;

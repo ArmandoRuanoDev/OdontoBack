@@ -1,24 +1,57 @@
 import { Router } from "express";
 import { authController } from "../controllers/authController";
-import rateLimit from 'express-rate-limit';
+import rateLimit from "express-rate-limit";
 
-const registerLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 35, // máximo 5 intentos por IP
-    message: "Demasiadas solicitudes de registro, intente más tarde"
-});
+const createLimiter = (minutes: number, max: number, message: string) =>
+    rateLimit({
+        windowMs: minutes * 60 * 1000,
+        max,
+        message: {
+            message
+        },
+        standardHeaders: true,
+        legacyHeaders: false
+    });
 
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 30, // más intentos que registro
-    message: "Demasiados intentos de inicio de sesión, intente más tarde"
-});
+// Registro
+const registerLimiter = createLimiter(15, 5,
+    "Demasiados intentos de registro. Intenta más tarde."
+);
 
-const passwordResetLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hora
-    max: 5,
-    message: "Demasiadas solicitudes de restablecimiento, intente más tarde"
-});
+// Login
+const loginLimiter = createLimiter(10, 10,
+    "Demasiados intentos de inicio de sesión. Intenta más tarde."
+);
+
+// Enviar código de verificación de correo
+const sendVerificationLimiter = createLimiter(15, 3,
+    "Demasiados envíos de código de verificación. Intenta más tarde."
+);
+
+// Verificar código de correo
+const verifyEmailLimiter = createLimiter(15, 10,
+    "Demasiados intentos de verificación. Intenta más tarde."
+);
+
+// Solicitar restablecimiento de contraseña
+const passwordResetLimiter = createLimiter(60, 3,
+    "Demasiadas solicitudes de restablecimiento. Intenta más tarde."
+);
+
+// Validar código de recuperación
+const verifyPasswordCodeLimiter = createLimiter(15, 10,
+    "Demasiados intentos de validación de código. Intenta más tarde."
+);
+
+// Resetear contraseña
+const resetPasswordLimiter = createLimiter(60, 3,
+    "Demasiados cambios de contraseña. Intenta más tarde."
+);
+
+// Refresh token
+const refreshTokenLimiter = createLimiter(15,30,
+    "Demasiadas solicitudes de sesión. Intenta más tarde."
+);
 
 class AuthRoutes {
     public router: Router = Router();
@@ -27,15 +60,15 @@ class AuthRoutes {
         this.config();
     }
 
-    config() : void {
-        this.router.post('/register', registerLimiter, authController.register);
-        this.router.post('/login', loginLimiter, authController.login);
-        this.router.post('/send-verification-code', authController.sendVerificationCode);
-        this.router.post('/verify-email', authController.verifyEmail);
-        this.router.post('/send-password-reset-code', passwordResetLimiter, authController.sendChangePasswordCode);
-        this.router.post('/verify-password-code', authController.verifyPasswordCode);
-        this.router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
-        this.router.post('/refresh-token', authController.refreshToken);
+    config(): void {
+        this.router.post("/register", registerLimiter, authController.register);
+        this.router.post("/login", loginLimiter, authController.login);
+        this.router.post("/send-verification-code", sendVerificationLimiter, authController.sendVerificationCode);
+        this.router.post("/verify-email", verifyEmailLimiter, authController.verifyEmail );
+        this.router.post("/send-password-reset-code", passwordResetLimiter, authController.sendChangePasswordCode);
+        this.router.post("/verify-password-code", verifyPasswordCodeLimiter, authController.verifyPasswordCode);
+        this.router.post("/reset-password", resetPasswordLimiter, authController.resetPassword);
+        this.router.post("/refresh-token", refreshTokenLimiter, authController.refreshToken);
     }
 }
 

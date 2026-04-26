@@ -9,9 +9,10 @@ const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
 
 // Tiempos de expiración
-const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const ACCESS_EXPIRES: jwt.SignOptions["expiresIn"] = (process.env.JWT_ACCESS_EXPIRES_IN || '15m') as jwt.SignOptions["expiresIn"];
 const REFRESH_EXPIRES_SECONDS = parseInt(process.env.JWT_REFRESH_EXPIRES_IN || '604800'); // 7 días en segundos
 
+// Interfaz del Token
 export interface TokenPayload {
     id_usuario: number;
     nombre_usuario: string;
@@ -23,14 +24,26 @@ export interface TokenPayload {
  * Genera un access token (vida corta)
  */
 export function generateAccessToken(payload: TokenPayload): string {
-    return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES });
+    return jwt.sign(
+        payload as object,
+        JWT_ACCESS_SECRET,
+        {
+            expiresIn: ACCESS_EXPIRES
+        } as jwt.SignOptions
+    );
 }
 
 /**
  * Genera un refresh token (vida larga)
  */
 export function generateRefreshToken(payload: TokenPayload): string {
-    return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES_SECONDS });
+    return jwt.sign(
+        payload as object,
+        JWT_REFRESH_SECRET,
+        {
+            expiresIn: REFRESH_EXPIRES_SECONDS
+        } as jwt.SignOptions
+    );
 }
 
 /**
@@ -63,7 +76,7 @@ export function verifyRefreshToken(token: string): TokenPayload | null {
 }
 
 /**
- * Alias para compatibilidad con código existente (verifyToken asume access token)
+ * Alias para compatibilidad
  * @deprecated Usar verifyAccessToken directamente
  */
 export function verifyToken(token: string): TokenPayload | null {
