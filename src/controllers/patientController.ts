@@ -16,58 +16,65 @@ class PatientController {
      */
     public async create(req: Request, res: Response) {
         try {
-            // Obtener el id del doctor desde el token
+
             const user = (req as any).user;
             const id_doctor = user.id_usuario;
 
             const payload: CreatePatientRequest = req.body;
+
+            // Normalización de datos importantes
+            const nombre = payload.nombre?.trim();
+            const telefono_principal = payload.telefono_principal?.replace(/\s/g, '');
+            const correo = payload.correo_electronico?.trim().toLowerCase() || null;
+
             const errores = this.validarDatosPaciente(payload);
             if (errores.length > 0) {
                 return res.status(400).json({ errors: errores });
             }
 
-            // Normalizar algunos campos
-            const nombre = payload.nombre.trim();
-            const telefono_principal = payload.telefono_principal.replace(/\s/g, '');
-            const correo = payload.correo_electronico?.toLowerCase().trim() || null;
-
-            // Llamar la función para crear al paciente
             const { data: nuevoId, error: rpcError } = await supabase
                 .schema('clinica')
                 .rpc('crear_paciente', {
                     _id_doctor: id_doctor,
                     _nombre: nombre,
                     _telefono_principal: telefono_principal,
-                    _apellido_paterno: payload.apellido_paterno || null,
-                    _apellido_materno: payload.apellido_materno || null,
+                    _apellido_paterno: payload.apellido_paterno?.trim() || null,
+                    _apellido_materno: payload.apellido_materno?.trim() || null,
                     _fecha_nacimiento: payload.fecha_nacimiento || null,
                     _sexo: payload.sexo || null,
                     _correo_electronico: correo,
-                    _telefono_secundario: payload.telefono_secundario || null,
-                    _calle: payload.calle || null,
+                    _telefono_secundario: payload.telefono_secundario?.replace(/\s/g, '') || null,
+                    _calle: payload.calle?.trim() || null,
                     _numero_exterior: payload.numero_exterior || null,
                     _numero_interior: payload.numero_interior || null,
-                    _colonia: payload.colonia || null,
-                    _ciudad: payload.ciudad || null,
-                    _estado: payload.estado || null,
+                    _colonia: payload.colonia?.trim() || null,
+                    _ciudad: payload.ciudad?.trim() || null,
+                    _estado: payload.estado?.trim() || null,
                     _codigo_postal: payload.codigo_postal || null,
                     _pais: payload.pais || 'México',
-                    _contacto_emergencia_nombre: payload.contacto_emergencia_nombre || null,
+                    _contacto_emergencia_nombre: payload.contacto_emergencia_nombre?.trim() || null,
                     _contacto_emergencia_parentesco: payload.contacto_emergencia_parentesco || null,
-                    _contacto_emergencia_telefono: payload.contacto_emergencia_telefono || null,
-                    _ocupacion: payload.ocupacion || null,
-                    _referido_por: payload.referido_por || null
+                    _contacto_emergencia_telefono: payload.contacto_emergencia_telefono?.replace(/\s/g, '') || null,
+                    _ocupacion: payload.ocupacion?.trim() || null,
+                    _referido_por: payload.referido_por?.trim() || null
                 });
 
             if (rpcError) {
                 await logError(req, rpcError, 'PatientController', 'create', 'clinica', 'lClinica', id_doctor);
-                if (rpcError.message?.includes('duplicate key') || rpcError.message?.includes('unique constraint')) {
-                    return res.status(409).json({ message: "El correo electrónico ya está registrado para este doctor" });
+
+                const msg = rpcError.message?.toLowerCase();
+
+                if (msg?.includes('duplicate') || msg?.includes('unique')) {
+                    return res.status(409).json({
+                        message: "Ya existe un registro con ese correo para este doctor"
+                    });
                 }
-                return res.status(500).json({ message: "Error al crear el paciente" });
+
+                return res.status(500).json({
+                    message: "Error al crear el paciente"
+                });
             }
 
-            // Obtener el paciente recién creado para devolverlo completo
             const { data: paciente, error: fetchError } = await supabase
                 .schema('clinica')
                 .from('tPaciente')
@@ -76,22 +83,22 @@ class PatientController {
                 .single();
 
             if (fetchError || !paciente) {
-                await logError(req, fetchError || new Error('Paciente no encontrado después de crear'), 'PatientController', 'create', 'clinica', 'lClinica', id_doctor);
-                // Aún así devolvemos el ID
+                await logError(req, fetchError || new Error('Paciente no encontrado'), 'PatientController', 'create', 'clinica', 'lClinica', id_doctor);
+
                 return res.status(201).json({
-                    message: "Paciente creado, pero hubo un error al recuperar los detalles",
+                    message: "Paciente creado, pero no se pudo recuperar el detalle",
                     id_paciente: nuevoId
                 });
             }
 
-            res.status(201).json({
+            return res.status(201).json({
                 message: "Paciente creado exitosamente",
                 paciente
             });
 
         } catch (err: any) {
             await logError(req, err, 'PatientController', 'create', 'clinica', 'lClinica');
-            res.status(500).json({ error: "Error en el servidor" });
+            return res.status(500).json({ error: "Error en el servidor" });
         }
     }
 
@@ -101,79 +108,67 @@ class PatientController {
     */
     public async list(req: Request, res: Response) {
         try {
+
             const user = (req as any).user;
             const id_doctor = user.id_usuario;
 
-            // Parámetros de consulta
-            const page = parseInt(req.query.page as string) || 1;
-            const limit = parseInt(req.query.limit as string) || 20;
-            const search = (req.query.search as string) || '';
-            const sortBy = (req.query.sortBy as string) || 'created_at';
-            const sortOrder = (req.query.sortOrder as string)?.toLowerCase() === 'asc' ? 'asc' : 'desc';
-            const activo = req.query.activo !== undefined ? req.query.activo === 'true' : undefined;
+            const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+            const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
+            const search = ((req.query.search as string) || '').trim();
+            const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
 
-            // Validar page y limit
-            const validPage = page > 0 ? page : 1;
-            const validLimit = limit > 0 && limit <= 100 ? limit : 20;
-            const offset = (validPage - 1) * validLimit;
+            const allowedSortFields = ['nombre', 'apellido_paterno', 'created_at', 'fecha_nacimiento'];
+            const sortBy = allowedSortFields.includes(req.query.sortBy as string)
+                ? (req.query.sortBy as string)
+                : 'created_at';
 
-            // Construir consulta base
+            const offset = (page - 1) * limit;
+
             let query = supabase
                 .schema('clinica')
                 .from('tPaciente')
                 .select('*', { count: 'exact' })
                 .eq('id_doctor', id_doctor);
 
-            // Filtro por activo (si se especifica)
+            const activo = req.query.activo;
+
             if (activo !== undefined) {
-                query = query.eq('activo', activo);
+                query = query.eq('activo', activo === 'true');
             }
 
-            // Búsqueda por texto (nombre, apellidos, teléfono o correo)
-            if (search.trim()) {
-                const searchTerm = `%${search.trim()}%`;
+            if (search) {
+                const term = `%${search}%`;
+
                 query = query.or(
-                    `nombre.ilike.${searchTerm},` +
-                    `apellido_paterno.ilike.${searchTerm},` +
-                    `apellido_materno.ilike.${searchTerm},` +
-                    `telefono_principal.ilike.${searchTerm},` +
-                    `correo_electronico.ilike.${searchTerm}`
+                    `nombre.ilike.${term},apellido_paterno.ilike.${term},apellido_materno.ilike.${term},telefono_principal.ilike.${term},correo_electronico.ilike.${term}`
                 );
             }
 
-            // Ordenamiento (validar campos permitidos para evitar inyección SQL)
-            const allowedSortFields = ['nombre', 'apellido_paterno', 'created_at', 'fecha_nacimiento'];
-            const actualSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
-
-            query = query
-                .order(actualSortBy, { ascending: sortOrder === 'asc' })
-                .range(offset, offset + validLimit - 1);
-
-            const { data: pacientes, error, count } = await query;
+            const { data, error, count } = await query
+                .order(sortBy, { ascending: sortOrder === 'asc' })
+                .range(offset, offset + limit - 1);
 
             if (error) {
                 await logError(req, error, 'PatientController', 'list', 'clinica', 'lClinica', id_doctor);
-                return res.status(500).json({ message: "Error al obtener la lista de pacientes" });
+                return res.status(500).json({ message: "Error al obtener pacientes" });
             }
 
             const total = count || 0;
-            const totalPages = Math.ceil(total / validLimit);
 
-            res.status(200).json({
-                data: pacientes || [],
+            return res.status(200).json({
+                data: data || [],
                 pagination: {
-                    page: validPage,
-                    limit: validLimit,
+                    page,
+                    limit,
                     total,
-                    totalPages,
-                    hasNext: validPage < totalPages,
-                    hasPrev: validPage > 1
+                    totalPages: Math.ceil(total / limit),
+                    hasNext: page * limit < total,
+                    hasPrev: page > 1
                 }
             });
-
         } catch (err: any) {
             await logError(req, err, 'PatientController', 'list', 'clinica', 'lClinica');
-            res.status(500).json({ error: "Error en el servidor" });
+            return res.status(500).json({ error: "Error en el servidor" });
         }
     }
 
@@ -184,32 +179,56 @@ class PatientController {
     private validarDatosPaciente(data: CreatePatientRequest): string[] {
         const errores: string[] = [];
 
-        if (!data.nombre || data.nombre.trim().length < 2) {
-            errores.push("El nombre es obligatorio y debe tener al menos 2 caracteres");
-        }
-        if (!data.telefono_principal || !/^\+?[0-9]{10,13}$/.test(data.telefono_principal.replace(/\s/g, ''))) {
-            errores.push("El teléfono principal debe tener entre 10 y 13 dígitos numéricos");
-        }
-        if (data.correo_electronico) {
-            const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
-            if (!emailRegex.test(data.correo_electronico)) {
-                errores.push("El correo electrónico no tiene un formato válido");
+        const nombreRegex = /^[\p{L}]+(?:[ '\-][\p{L}]+)*$/u;
+        const telefonoRegex = /^\+?[0-9]{10,15}$/;
+        const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+
+        // Normalización segura
+        const nombreRaw = data.nombre ?? '';
+        const nombre = nombreRaw.trim().replace(/\s+/g, ' ');
+        const telefono = (data.telefono_principal ?? '').trim().replace(/\s/g, '');
+        const telefonoEmergencia = (data.contacto_emergencia_telefono ?? '').trim().replace(/\s/g, '');
+        const correo = data.correo_electronico?.trim().toLowerCase();
+
+        if (!nombre) {
+            errores.push("El nombre es obligatorio");
+        } else {
+            if (nombre.length < 2 || nombre.length > 50) {
+                errores.push("El nombre debe tener entre 2 y 50 caracteres");
+            }
+            if (!nombreRegex.test(nombre)) {
+                errores.push("El nombre solo puede contener letras, espacios, apóstrofes o guiones");
             }
         }
+        
+        if (!telefono) {
+            errores.push("El teléfono es obligatorio");
+        } else if (!telefonoRegex.test(telefono)) {
+            errores.push("El teléfono debe tener entre 10 y 15 dígitos (puede incluir '+')");
+        }
+
+        if (correo && !emailRegex.test(correo)) {
+            errores.push("El correo electrónico no tiene un formato válido");
+        }
+        
         if (data.fecha_nacimiento) {
             const fecha = new Date(data.fecha_nacimiento);
+
             if (isNaN(fecha.getTime())) {
                 errores.push("La fecha de nacimiento no es válida");
             } else if (fecha > new Date()) {
                 errores.push("La fecha de nacimiento no puede ser futura");
             }
         }
-        if (data.sexo && !['M', 'F'].includes(data.sexo)) {
-            errores.push("El sexo debe ser 'M' o 'F'");
+        
+        if (data.sexo && !['M', 'F', 'O'].includes(data.sexo)) {
+            errores.push("El sexo debe ser 'M', 'F' o 'O'");
         }
-        // Validar teléfono de emergencia si se proporciona
-        if (data.contacto_emergencia_telefono && !/^\+?[0-9]{10,13}$/.test(data.contacto_emergencia_telefono.replace(/\s/g, ''))) {
-            errores.push("El teléfono de emergencia debe tener entre 10 y 13 dígitos");
+        
+        if (telefonoEmergencia && !telefonoRegex.test(telefonoEmergencia)) {
+            errores.push("El teléfono de emergencia debe tener entre 10 y 15 dígitos (puede incluir '+')");
+        } else if (telefono && telefonoEmergencia && telefono === telefonoEmergencia) {
+            errores.push("El teléfono de emergencia no puede ser igual al del paciente")
         }
 
         return errores;

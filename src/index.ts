@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import AuthRoutes from "./routes/authRoutes"; 
 import SubscribeRoutes from "./routes/subscribeRoutes";
 import PatientRoutes from "./routes/patientRoutes";
+import { webHookController } from "./controllers/webhookController";
 import morgan from "morgan";
 import cors from "cors";
 
@@ -25,6 +26,11 @@ class Server {
         this.app.set('port', process.env.PORT || 3000);
         this.app.use(morgan('dev'));
         this.app.use(cors(corsOptions));
+        this.app.post(
+            "/api/sub/webhooks/stripe",
+            express.raw({ type: "application/json" }),
+            webHookController.handleStripeWebhook
+        );
         this.app.use(express.json());
         this.app.use(express.urlencoded({extended : false}));
     }

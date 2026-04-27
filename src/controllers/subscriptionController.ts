@@ -1,413 +1,405 @@
 import { Request, Response } from "express";
+import Stripe from "stripe";
 import supabase from "../database";
 import { logError } from "../util/logError";
-import { sendCancellationEmail, sendSubscriptionEmail, sendSubscriptionReceipt } from '../services/emailService';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: "2026-04-22.dahlia"
+});
 
 class SubscriptionController {
 
-    constructor() {}
+  /**
+    * GET /api/sub/plans
+    * Obtiene todos los planes disponibles para Todonto.
+   */
+  public async getPlans(req: Request, res: Response) {
+    try {
+      const { data, error } = await supabase
+        .schema("usuario")
+        .from("tTipoSuscripcion")
+        .select("*")
+        .eq("activo", true)
+        .order("precio");
 
-    public async subscribe(req: Request, res: Response) {
-        try {
-            const user = (req as any).user;
-            if (!user || !user.id_usuario) {
-                return res.status(401).json({ message: "No autorizado" });
-            }
+      if (error) {
+        await logError(req, error, 'SubscriptionController', 'getPlans', 'usuario', 'lStripe');
+        return res.status(500).json({ message: "Error al obtener los planes" });
+      }
 
-            const { id_tipo_suscripcion, metodo_pago, ultimos_digitos, id_transaccion_gateway } = req.body;
+      res.json(data);
+    } catch (err) {
+      await logError(req, err, 'SubscriptionController', 'getPlans', 'usuario', 'lStripe');
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  }
 
-            // Validaciones
-            if (!id_tipo_suscripcion) {
-                return res.status(400).json({ message: "El tipo de suscripción es requerido" });
-            }
-            if (!metodo_pago) {
-                return res.status(400).json({ message: "El método de pago es requerido" });
-            }
+  /**
+    * POST /api/sub/trial
+    * Asigna el plan de prueba a usuario.
+   */
+  async startTrial(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
+      const { payment_method_id } = req.body;
 
-            // Obtener detalles del tipo de suscripción
-            const { data: tipoSuscripcion, error: tipoError } = await supabase
-                .schema('usuario')
-                .from('tTipoSuscripcion')
-                .select('id_tipo_suscripcion, nombre, duracion_dias, precio, moneda, activo')
-                .eq('id_tipo_suscripcion', id_tipo_suscripcion)
-                .eq('activo', true)
-                .single();
+      if (!payment_method_id)
+        return res.status(400).json({ message: "payment_method_id requerido" });
 
-            if (tipoError || !tipoSuscripcion) {
-                await logError(req, tipoError || new Error('Tipo de suscripción no encontrado'), 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(404).json({ message: "Plan de suscripción no válido" });
-            }
+      // Usamos el price_id del plan Profesional (mensual)
+      const targetPriceId = process.env.DEFAULT_TRIAL_PRICE_ID;
 
-            // Verificar si el usuario ya tiene una suscripción activa (estado = 'activa' y fecha_fin > NOW o NULL)
-            const { data: suscripcionActiva, error: activeError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .select('id_suscripcion, id_tipo_suscripcion, estado, fecha_fin')
-                .eq('id_usuario', user.id_usuario)
-                .eq('estado', 'activa')
-                .or('fecha_fin.is.null,fecha_fin.gt.now()')
-                .maybeSingle();
+      // Obtener o crear customer
+      const { data: usuarioDB, error: userDBError } = await supabase
+        .schema("usuario")
+        .from("tUsuario")
+        .select("stripe_customer_id")
+        .eq("id_usuario", user.id_usuario)
+        .single();
 
-            if (activeError) {
-                await logError(req, activeError, 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(500).json({ message: "Error al verificar suscripción activa" });
-            }
+      if (userDBError) throw userDBError;
 
-            // Si tiene una suscripción activa, la cancelamos (cambiamos estado a 'cancelada')
-            if (suscripcionActiva?.id_suscripcion) {
-                const { error: cancelError } = await supabase
-                    .schema('usuario')
-                    .from('tUsuarioSuscripcion')
-                    .update({ estado: 'cancelada', updated_at: new Date() })
-                    .eq('id_suscripcion', suscripcionActiva.id_suscripcion);
-                if (cancelError) {
-                    await logError(req, cancelError, 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
-                }
-            }
+      let customerId = usuarioDB.stripe_customer_id;
 
-            const ahora = new Date();
-            let fechaFin = null;
-            if (tipoSuscripcion.duracion_dias !== null && tipoSuscripcion.duracion_dias > 0) {
-                fechaFin = new Date(ahora.getTime() + tipoSuscripcion.duracion_dias * 24 * 60 * 60 * 1000);
-            }
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.correo_electronico,
+          name: user.nombre_usuario,
+        });
+        customerId = customer.id;
 
-            // Insertar nueva suscripción
-            const { data: nuevaSuscripcion, error: insertSubError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .insert({
-                    id_usuario: user.id_usuario,
-                    id_tipo_suscripcion: tipoSuscripcion.id_tipo_suscripcion,
-                    fecha_inicio: ahora,
-                    fecha_fin: fechaFin,
-                    estado: 'activa',
-                    created_at: ahora,
-                    updated_at: null
-                })
-                .select()
-                .single();
+        // Guardar en la base de datos
+        await supabase
+          .schema("usuario")
+          .from("tUsuario")
+          .update({ stripe_customer_id: customerId })
+          .eq("id_usuario", user.id_usuario);
+      }
 
-            if (insertSubError) {
-                await logError(req, insertSubError, 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(500).json({ message: "Error al crear la suscripción" });
-            }
+      // Adjuntar y hacer predeterminado el método de pago
+      await stripe.paymentMethods.attach(payment_method_id, { customer: customerId });
+      await stripe.customers.update(customerId, {
+        invoice_settings: { default_payment_method: payment_method_id },
+      });
 
-            // Insertar registro de pago
-            const { error: pagoError } = await supabase
-                .schema('usuario')
-                .from('tPago')
-                .insert({
-                    id_suscripcion: nuevaSuscripcion.id_suscripcion,
-                    monto: tipoSuscripcion.precio,
-                    moneda: tipoSuscripcion.moneda,
-                    fecha_pago: ahora,
-                    metodo_pago: metodo_pago,
-                    ultimos_digitos: ultimos_digitos || null,
-                    id_transaccion_gateway: id_transaccion_gateway || null,
-                    estado_pago: 'exitoso'
-                });
+      const pm = await stripe.paymentMethods.retrieve(payment_method_id);
 
-            if (pagoError) {
-                await logError(req, pagoError, 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso', user.id_usuario);
-            }
+      // Crear suscripción con trial de 14 días en Stripe
+      const trialEnd = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60; // 14 días en segundos UNIX
 
-            var prueba = false
-            if (tipoSuscripcion.id_tipo_suscripcion == 3)
-                prueba = true;
+      const subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: [{ price: targetPriceId! }],
+        default_payment_method: payment_method_id,
+        trial_end: trialEnd,
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { id_usuario: user.id_usuario },
+      });
 
-            sendSubscriptionEmail(
-                user.correo_electronico,
-                user.nombre_usuario,
-                tipoSuscripcion.nombre,
-                tipoSuscripcion.precio,
-                tipoSuscripcion.moneda,
-                ahora,
-                fechaFin,
-                prueba
-            ).catch(err => {
-                console.error('Error al enviar correo de suscripción:', err);
-                logError(req, err, 'SubscriptionController', 'sendSubscriptionEmail', 'usuario', 'lAcceso', user.id_usuario);
-            });
+      // Llamar a la función SQL que guarda la prueba con referencia a la suscripción
+      const { error } = await supabase
+        .schema("usuario")
+        .rpc("activar_prueba_con_suscripcion", {
+          _id_usuario: user.id_usuario,
+          _stripe_customer_id: customerId,
+          _stripe_payment_method_id: payment_method_id,
+          _tipo_metodo: "card",
+          _marca: pm.card?.brand,
+          _ultimos_digitos: pm.card?.last4,
+          _expira_mes: pm.card?.exp_month,
+          _expira_anio: pm.card?.exp_year,
+          _stripe_subscription_id: subscription.id,
+          _fecha_fin_trial: new Date(trialEnd * 1000).toISOString()
+        });
 
-            var subtotal = tipoSuscripcion.precio / 1.16
-            var tax = subtotal * 0.16
+      if (error) throw error;
 
-            sendSubscriptionReceipt(
-                user.correo_electronico,
-                user.nombre_usuario,
-                tipoSuscripcion.nombre,
-                subtotal,
-                tax,
-                tipoSuscripcion.precio,
-                tipoSuscripcion.moneda,
-                ahora,
-                fechaFin,
-                id_transaccion_gateway,
-                metodo_pago,
-                prueba
-            )
+      return res.json({
+        message: "Prueba activada. Se convertirá automáticamente en plan de pago al finalizar los 14 días.",
+        subscription_id: subscription.id,
+        trial_end: trialEnd
+      });
+    } catch (error: any) {
+      await logError(req, error, "Subscription", "startTrial", "usuario", "lStripe");
+      return res.status(500).json({ message: error.message || "Error al activar la prueba" });
+    }
+  }
 
-            // Respuesta exitosa
-            res.status(201).json({
-                message: "Suscripción activada correctamente",
-                suscripcion: {
-                    id: nuevaSuscripcion.id_suscripcion,
-                    plan: tipoSuscripcion.nombre,
-                    fecha_inicio: nuevaSuscripcion.fecha_inicio,
-                    fecha_fin: nuevaSuscripcion.fecha_fin,
-                    estado: nuevaSuscripcion.estado
-                }
-            });
+  /**
+    * POST /api/sub/subscribe
+    * Asigna un plan de pago a usuario.
+   */
+  async subscribe(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
+      const { price_id, payment_method_id } = req.body;
 
-        } catch (err: any) {
-            await logError(req, err, 'SubscriptionController', 'subscribe', 'usuario', 'lAcceso');
-            res.status(500).json({ error: "Error en el servidor" });
+      if (!price_id) {
+        return res.status(400).json({ message: "price_id es requerido" });
+      }
+
+
+      // Obtener o crear el customer de Stripe
+      const { data: usuarioDB, error: userDBError } = await supabase
+        .schema("usuario")
+        .from("tUsuario")
+        .select("stripe_customer_id")
+        .eq("id_usuario", user.id_usuario)
+        .single();
+
+      if (userDBError) throw userDBError;
+
+      let customerId = usuarioDB.stripe_customer_id;
+
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.correo_electronico,
+          name: user.nombre_usuario,
+        });
+        customerId = customer.id;
+
+        await supabase
+          .schema("usuario")
+          .from("tUsuario")
+          .update({ stripe_customer_id: customerId })
+          .eq("id_usuario", user.id_usuario);
+      }
+
+      // Si se envió un nuevo método de pago, adjuntarlo y hacerlo predeterminado.
+      // Si no, sincronizar el que tengamos en base de datos con Stripe.
+      let metodoPagoLocalId: number | null = null;
+      let metodoPagoStripeId: string | undefined = undefined;
+
+      if (payment_method_id) {
+        // Adjuntar al customer
+        await stripe.paymentMethods.attach(payment_method_id, { customer: customerId });
+
+        // Hacerlo predeterminado
+        await stripe.customers.update(customerId, {
+          invoice_settings: {
+            default_payment_method: payment_method_id,
+          },
+        });
+
+        // Obtener datos del método de pago
+        const pm = await stripe.paymentMethods.retrieve(payment_method_id);
+
+        // Insertar o actualizar en tMetodoPago
+        const { data: metodoInsertado, error: metodoError } = await supabase
+          .schema("usuario")
+          .from("tMetodoPago")
+          .upsert({
+            id_usuario: user.id_usuario,
+            stripe_payment_method_id: payment_method_id,
+            tipo: pm.type || 'card',
+            marca: pm.card?.brand || null,
+            ultimos_digitos: pm.card?.last4 || null,
+            expira_mes: pm.card?.exp_month || null,
+            expira_anio: pm.card?.exp_year || null,
+            es_predeterminado: true,
+            activo: true,
+          },
+          { onConflict: 'stripe_payment_method_id' })
+          .select('id_metodo')
+          .single();
+
+        if (metodoError) throw metodoError;
+          metodoPagoLocalId = metodoInsertado.id_metodo;
+
+        // Asegurar que solo ese método quede como predeterminado
+        await supabase
+          .schema("usuario")
+          .from("tMetodoPago")
+          .update({ es_predeterminado: false })
+          .eq('id_usuario', user.id_usuario)
+          .neq('id_metodo', metodoPagoLocalId);
+
+        metodoPagoStripeId = payment_method_id;
+      } else {
+        // No se envió método nuevo, buscamos el predeterminado en base de datos
+        const { data: metodoExistente, error: metodoExistenteError } = await supabase
+          .schema("usuario")
+          .from("tMetodoPago")
+          .select("id_metodo, stripe_payment_method_id")
+          .eq("id_usuario", user.id_usuario)
+          .eq("es_predeterminado", true)
+          .eq("activo", true)
+          .maybeSingle();
+
+        if (metodoExistenteError || !metodoExistente) {
+          return res.status(400).json({
+            message: "No tienes un método de pago predeterminado. Envía payment_method_id.",
+          });
         }
+        metodoPagoLocalId = metodoExistente.id_metodo;
+        metodoPagoStripeId = metodoExistente.stripe_payment_method_id;
+
+        if (!metodoPagoStripeId) {
+          return res.status(400).json({ message: "El método de pago predeterminado no es válido." });
+        }
+
+        // Sincronizar con Stripe: asegurar que el customer tenga ese método por defecto
+        await stripe.customers.update(customerId, {
+          invoice_settings: {
+            default_payment_method: metodoPagoStripeId,
+          },
+        });
+      }
+
+      if (!metodoPagoStripeId) {
+        return res.status(400).json({ message: "No se pudo determinar el método de pago." });
+      }
+      const paymentMethod: string = metodoPagoStripeId;
+
+      // Cancelar inmediatamente cualquier suscripción de prueba activa en Stripe
+      const trialingSubs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'trialing',
+        limit: 5,
+      });
+
+      for (const trialSub of trialingSubs.data) {
+        await stripe.subscriptions.cancel(trialSub.id); // Elimina la suscripción de inmediato
+      }
+
+      // Obtener el nombre y precio del plan desde la base de datos
+      const { data: plan, error: planError } = await supabase
+        .schema("usuario")
+        .from("tTipoSuscripcion")
+        .select("nombre, precio")
+        .eq("stripe_price_id", price_id)
+        .single();
+
+      if (planError || !plan) {
+        return res.status(400).json({ message: "Plan no encontrado para el price_id proporcionado." });
+      }
+
+      // Crear la suscripción en Stripe (cobro inmediato)
+      const subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: [{ price: price_id }],
+        default_payment_method: paymentMethod,
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { id_usuario: user.id_usuario },
+      });
+
+      // Verificar que la suscripción esté activa (pago exitoso)
+      if (subscription.status !== 'active') {
+        return res.status(402).json({
+          message: "El pago no se pudo completar. Revisa tu método de pago.",
+        });
+      }
+
+      const invoice = (subscription as any).latest_invoice;
+      const paymentIntent = invoice?.payment_intent;
+
+      // Registrar en la base de datos con la función convertir_a_plan_pago
+      const { error: convertError } = await supabase
+        .schema("usuario")
+        .rpc("convertir_a_plan_pago", {
+          _id_usuario: user.id_usuario,
+          _nombre_plan: plan.nombre,
+          _stripe_subscription_id: subscription.id,
+          _stripe_payment_intent_id: paymentIntent?.id || null,
+          _stripe_invoice_id: invoice?.id || null,
+          _monto: paymentIntent?.amount ? paymentIntent.amount / 100 : plan.precio,
+          _id_metodo_pago: metodoPagoLocalId,
+        });
+
+      if (convertError) throw convertError;
+
+      return res.json({
+        message: "Suscripción creada exitosamente",
+        subscription_id: subscription.id,
+        plan: plan.nombre,
+        monto: paymentIntent?.amount ? paymentIntent.amount / 100 : plan.precio,
+      });
+
+    } catch (error: any) {
+      await logError(req, error, "Subscription", "subscribe", "usuario", "lStripe");
+      return res.status(500).json({ message: error.message || "Error al crear la suscripción" });
+    }
+  }
+
+  async changePlan(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
+      const { new_price_id } = req.body;
+
+      const { data: sub } = await supabase
+        .schema("usuario")
+        .from("tUsuarioSuscripcion")
+        .select("stripe_subscription_id")
+        .eq("id_usuario", user.id_usuario)
+        .eq("estado", "activa")
+        .not("stripe_subscription_id", "is", null)
+        .single();
+
+      if (!sub)
+        return res.status(404).json({ message: "No subscription" });
+
+      const stripeSub = await stripe.subscriptions.retrieve(
+        sub.stripe_subscription_id
+      );
+
+      const subscriptionItem = stripeSub.items.data[0];
+
+    if (!subscriptionItem) {
+    return res.status(400).json({
+        message: "La suscripción no tiene items válidos"
+    });
     }
 
-    public async cancelSubscription(req: Request, res: Response) {
-        try {
-            const user = (req as any).user;
-            if (!user || !user.id_usuario) {
-                return res.status(401).json({ message: "No autorizado" });
-            }
-
-            // Buscar la suscripción activa actual del usuario
-            const { data: suscripcion, error: findError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .select(`
-                    id_suscripcion,
-                    id_tipo_suscripcion,
-                    fecha_fin,
-                    tTipoSuscripcion (nombre)
-                `)
-                .eq('id_usuario', user.id_usuario)
-                .eq('estado', 'activa')
-                .or('fecha_fin.is.null,fecha_fin.gt.now()')
-                .maybeSingle();
-
-            if (findError || !suscripcion) {
-                await logError(req, findError || new Error('No active subscription'), 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(404).json({ message: "No tienes una suscripción activa para cancelar" });
-            }
-
-            // Actualizar la suscripción a 'cancelada' (mantenemos fecha_fin original)
-            const { error: updateError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .update({
-                    estado: 'cancelada',
-                    updated_at: new Date()
-                })
-                .eq('id_suscripcion', suscripcion.id_suscripcion);
-
-            if (updateError) {
-                await logError(req, updateError, 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(500).json({ message: "Error al cancelar la suscripción" });
-            }
-
-            // Si es de por vida (fecha_fin NULL), insertar inmediatamente el plan 'Inicio'
-            if (suscripcion.fecha_fin === null) {
-                const { data: planInicio, error: planError } = await supabase
-                    .schema('usuario')
-                    .from('tTipoSuscripcion')
-                    .select('id_tipo_suscripcion')
-                    .eq('nombre', 'Inicio')
-                    .eq('activo', true)
-                    .single();
-
-                if (planError) {
-                    await logError(req, planError, 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                } else {
-                    // Verificar que no exista ya una suscripción activa de Inicio para este usuario
-                    const { data: existeInicio } = await supabase
-                        .schema('usuario')
-                        .from('tUsuarioSuscripcion')
-                        .select('id_suscripcion')
-                        .eq('id_usuario', user.id_usuario)
-                        .eq('estado', 'activa')
-                        .eq('id_tipo_suscripcion', planInicio.id_tipo_suscripcion)
-                        .maybeSingle();
-
-                    if (!existeInicio) {
-                        const { error: insertInicioError } = await supabase
-                            .schema('usuario')
-                            .from('tUsuarioSuscripcion')
-                            .insert({
-                                id_usuario: user.id_usuario,
-                                id_tipo_suscripcion: planInicio.id_tipo_suscripcion,
-                                fecha_inicio: new Date(),
-                                fecha_fin: null,
-                                estado: 'activa'
-                            });
-                        if (insertInicioError) {
-                            await logError(req, insertInicioError, 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                        }
-                    }
-                }
-            } else {
-                // Para suscripciones con fecha_fin futura, ejecutar la función que insertará 'Inicio' cuando expire
-                const { error: rpcError } = await supabase
-                    .schema('usuario')
-                    .rpc('finalizar_suscripcion_a_inicio');
-                if (rpcError) {
-                    console.error('Error al ejecutar finalizar_suscripcion_a_inicio:', rpcError);
-                    await logError(req, rpcError, 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                }
-            }
-
-            // Enviar correo de confirmación de cancelación
-            const tipoSuscripcionObj = Array.isArray(suscripcion.tTipoSuscripcion)
-                ? suscripcion.tTipoSuscripcion[0]
-                : suscripcion.tTipoSuscripcion;
-            const planNombre = tipoSuscripcionObj?.nombre || 'plan';
-
-            await sendCancellationEmail(
-                user.correo_electronico,
-                user.nombre_usuario,
-                planNombre,
-                suscripcion.fecha_fin ? new Date(suscripcion.fecha_fin) : null
-            ).catch(err => {
-                console.error('Error al enviar correo de cancelación:', err);
-                logError(req, err, 'SubscriptionController', 'sendCancellationEmail', 'usuario', 'lAcceso', user.id_usuario);
-            });
-
-            res.status(200).json({
-                message: "Suscripción cancelada exitosamente. Seguirás teniendo acceso hasta la fecha de expiración.",
-                fecha_fin: suscripcion.fecha_fin
-            });
-
-        } catch (err: any) {
-            await logError(req, err, 'SubscriptionController', 'cancelSubscription', 'usuario', 'lAcceso');
-            res.status(500).json({ error: "Error en el servidor" });
+    await stripe.subscriptions.update(sub.stripe_subscription_id, {
+    items: [
+        {
+        id: subscriptionItem.id,
+        price: new_price_id
         }
+    ],
+    proration_behavior: "create_prorations"
+    });
+
+      return res.json({ message: "Plan actualizado" });
+
+    } catch (error) {
+      return res.status(500).json({ message: "Error" });
     }
+  }
 
-    public async getCurrentSubscription(req: Request, res: Response) {
-        try {
-            const user = (req as any).user;
-            if (!user || !user.id_usuario) {
-                return res.status(401).json({ message: "No autorizado" });
-            }
+  async cancel(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
 
-            // Intentar obtener suscripción de pago vigente (id ≠ 5)
-            const { data: paidSubscription, error: paidError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .select(`
-                    id_suscripcion,
-                    fecha_inicio,
-                    fecha_fin,
-                    estado,
-                    id_tipo_suscripcion,
-                    tTipoSuscripcion (
-                        id_tipo_suscripcion,
-                        nombre,
-                        descripcion,
-                        duracion_dias,
-                        precio,
-                        moneda
-                    )
-                `)
-                .eq('id_usuario', user.id_usuario)
-                .neq('id_tipo_suscripcion', 5) // Excluir plan Inicio
-                .or('estado.eq.activa,and(estado.eq.cancelada,fecha_fin.gt.now())')
-                .order('fecha_inicio', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+      const { data: sub } = await supabase
+        .schema("usuario")
+        .from("tUsuarioSuscripcion")
+        .select("stripe_subscription_id")
+        .eq("id_usuario", user.id_usuario)
+        .eq("estado", "activa")
+        .single();
 
-            if (paidError) {
-                await logError(req, paidError, 'SubscriptionController', 'getCurrentSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(500).json({ message: "Error al obtener la suscripción" });
-            }
+      if (!sub?.stripe_subscription_id)
+        return res.status(400).json({ message: "No plan de pago activo" });
 
-            // Si hay suscripción de pago vigente, la devolvemos
-            if (paidSubscription) {
-                const tipo = Array.isArray(paidSubscription.tTipoSuscripcion)
-                    ? paidSubscription.tTipoSuscripcion[0]
-                    : paidSubscription.tTipoSuscripcion;
+      await stripe.subscriptions.update(sub.stripe_subscription_id, {
+        cancel_at_period_end: true
+      });
 
-                return res.status(200).json({
-                    has_active_subscription: true,
-                    subscription: {
-                        id: paidSubscription.id_suscripcion,
-                        plan: tipo!.nombre,
-                        fecha_inicio: paidSubscription.fecha_inicio,
-                        fecha_fin: paidSubscription.fecha_fin,
-                        estado: paidSubscription.estado,
-                        is_cancelled: paidSubscription.estado === 'cancelada',
-                        days_remaining: paidSubscription.fecha_fin
-                            ? Math.max(0, Math.ceil((new Date(paidSubscription.fecha_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                            : null
-                    }
-                });
-            }
+      await supabase
+        .schema("usuario")
+        .rpc("cancelar_suscripcion", {
+          _id_usuario: user.id_usuario
+        });
 
-            // Si no hay suscripción de pago, buscar cualquier otra (incluye Inicio)
-            const { data: anySubscription, error: anyError } = await supabase
-                .schema('usuario')
-                .from('tUsuarioSuscripcion')
-                .select(`
-                    id_suscripcion,
-                    fecha_inicio,
-                    fecha_fin,
-                    estado,
-                    id_tipo_suscripcion,
-                    tTipoSuscripcion (
-                        id_tipo_suscripcion,
-                        nombre,
-                        descripcion,
-                        duracion_dias,
-                        precio,
-                        moneda
-                    )
-                `)
-                .eq('id_usuario', user.id_usuario)
-                .or('estado.eq.activa,and(estado.eq.cancelada,fecha_fin.gt.now())')
-                .order('fecha_inicio', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+      return res.json({
+        message: "Cancelada al finalizar periodo"
+      });
 
-            if (anyError) {
-                await logError(req, anyError, 'SubscriptionController', 'getCurrentSubscription', 'usuario', 'lAcceso', user.id_usuario);
-                return res.status(500).json({ message: "Error al obtener la suscripción" });
-            }
-
-            if (!anySubscription) {
-                return res.status(200).json({
-                    has_active_subscription: false,
-                    subscription: null,
-                    message: "No tienes una suscripción activa. Acceso limitado."
-                });
-            }
-
-            const tipo = Array.isArray(anySubscription.tTipoSuscripcion)
-                ? anySubscription.tTipoSuscripcion[0]
-                : anySubscription.tTipoSuscripcion;
-
-            const isPaidPlan = tipo!.id_tipo_suscripcion !== 5;
-
-            res.status(200).json({
-                has_active_subscription: isPaidPlan,
-                subscription: {
-                    id: anySubscription.id_suscripcion,
-                    plan: tipo!.nombre,
-                    fecha_inicio: anySubscription.fecha_inicio,
-                    fecha_fin: anySubscription.fecha_fin,
-                    estado: anySubscription.estado,
-                    is_cancelled: anySubscription.estado === 'cancelada',
-                    days_remaining: anySubscription.fecha_fin
-                        ? Math.max(0, Math.ceil((new Date(anySubscription.fecha_fin).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                        : null
-                }
-            });
-
-        } catch (err: any) {
-            await logError(req, err, 'SubscriptionController', 'getCurrentSubscription', 'usuario', 'lAcceso');
-            res.status(500).json({ error: "Error en el servidor" });
-        }
+    } catch (error) {
+      return res.status(500).json({ message: "Error" });
     }
+  }
 }
 
 export const subscriptionController = new SubscriptionController();

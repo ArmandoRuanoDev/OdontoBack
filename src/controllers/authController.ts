@@ -46,9 +46,9 @@ class AuthController {
 
             const errores = [];
             const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
-            const telefonoRegex = /^\+?[0-9]{10,13}$/;
+            const telefonoRegex = /^\+?[0-9]{10,15}$/;
             const nombreRegex = /^[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÜüÑñ]+)*$/;
-            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,70}$/;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{8,70}$/;
 
             // Validaciones básicas
             if (!nombre || !aPaterno || !correo || !contrasena || !telefono) {
@@ -59,7 +59,7 @@ class AuthController {
                 errores.push("El nombre de usuario debe tener entre 3 y 50 caracteres");
             }
 
-            if (aPaterno!.length < 5 || aPaterno!.length > 50) {
+            if (!aPaterno || aPaterno.length < 5 || aPaterno.length > 50) {
                 errores.push("El apellido paterno debe tener entre 5 y 50 caracteres");
             }
 
@@ -67,8 +67,8 @@ class AuthController {
                 errores.push("El correo electrónico debe tener entre 10 y 100 caracteres");
             }
 
-            if (telefono.length < 10 || telefono.length > 13) {
-                errores.push("El número de teléfono debe tener entre 10 y 13 caracteres");
+            if (telefono.length < 10 || telefono.length > 15) {
+                errores.push("El número de teléfono debe tener entre 10 y 15 caracteres");
             }
 
             if (contrasena.length < 8) {
@@ -88,7 +88,7 @@ class AuthController {
             }
 
             if (!telefonoRegex.test(telefono)) { // Validación de formato de teléfono.
-                errores.push("El teléfono debe contener solo números y entre 10 y 13 dígitos");
+                errores.push("El teléfono debe tener entre 10 y 15 dígitos (puede incluir '+')");
             }
 
             if (!nombreRegex.test(nombre)) { // Validación de formato de nombre de usuario.
@@ -161,7 +161,7 @@ class AuthController {
                 await logError(req, error, 'AuthController', 'register', 'usuario', 'lAcceso');
                 
                 if (error.message?.includes('duplicate key')) {
-                    return res.status(409).json({ message: "El correo o teléfono ya está registrado" });
+                    return res.status(409).json({ message: "El correo ya está registrado" });
                 }
                 return res.status(500).json({ message: "Error al registrar el usuario" });
             }
@@ -284,18 +284,25 @@ class AuthController {
                     fecha_inicio,
                     fecha_fin,
                     estado,
+                    convertida_desde_prueba,
+                    cancelar_al_vencer,
                     id_tipo_suscripcion,
                     tTipoSuscripcion (
                         nombre,
                         descripcion,
                         duracion_dias,
                         precio,
-                        moneda
+                        moneda,
+                        max_pacientes,
+                        max_citas_mes,
+                        max_recetas_mes,
+                        es_prueba,
+                        requiere_metodo_pago,
+                        stripe_price_id
                     )
                 `)
                 .eq('id_usuario', user.id_usuario)
-                .or('estado.eq.activa,estado.eq.pendiente')
-                .or('fecha_fin.is.null,fecha_fin.gt.now()')
+                .eq('estado', 'activa')   // Solo la suscripción activa (índice único garantiza una)
                 .maybeSingle();
 
             if (subError) {
@@ -317,7 +324,13 @@ class AuthController {
                     fecha_inicio: suscripcion.fecha_inicio,
                     fecha_fin: suscripcion.fecha_fin,
                     estado: suscripcion.estado,
-                    vigente: suscripcion.fecha_fin ? new Date(suscripcion.fecha_fin) > new Date() : true
+                    vigente: suscripcion.fecha_fin ? new Date(suscripcion.fecha_fin) > new Date() : true,
+                    max_pacientes: tipoData?.max_pacientes,
+                    max_citas_mes: tipoData?.max_citas_mes,
+                    max_recetas_mes: tipoData?.max_recetas_mes,
+                    es_prueba: tipoData?.es_prueba,
+                    requiere_metodo_pago: tipoData?.requiere_metodo_pago,
+                    cancelar_al_vencer: suscripcion.cancelar_al_vencer
                 };
             }
 
@@ -587,7 +600,7 @@ class AuthController {
 
             res.status(200).json({
                 message: "Correo verificado exitosamente",
-                    user: {
+                user: {
                     id: user.id_usuario,
                     nombre_usuario: user.nombre_usuario,
                     correo_electronico: user.correo_electronico,
@@ -769,7 +782,7 @@ class AuthController {
     public async resetPassword(req: Request, res: Response) {
         try {
             const { reset_token, nueva_contrasena } = req.body;
-            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,70}$/;
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{8,70}$/;
 
             if (!reset_token || !nueva_contrasena) {
                 return res.status(400).json({ message: "Token y nueva contraseña son obligatorios" });
@@ -1016,7 +1029,10 @@ class AuthController {
         }
     }
 
-    // Método auxiliar para registrar intentos fallidos y posible bloqueo
+    /**
+     * Método auxiliar para registrar
+     * intentos fallidos y posible bloqueo.
+     */
     private async registrarIntentoFallido(id_usuario: number | null, req: Request) {
         if (!id_usuario) {
             // Si el usuario no existe, solo logueamos el intento (sin asociar a usuario)

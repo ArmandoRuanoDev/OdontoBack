@@ -9,10 +9,10 @@ CREATE TABLE clinica."tPaciente" (
     apellido_paterno VARCHAR(60),
     apellido_materno VARCHAR(60),
     fecha_nacimiento DATE,
-    sexo CHAR(1) CHECK (sexo IN ('M','F')),
+    sexo CHAR(1) CHECK (sexo IN ('M','F', 'O')),
     correo_electronico VARCHAR(150),
-    telefono_principal VARCHAR(13) NOT NULL,
-    telefono_secundario VARCHAR(13),
+    telefono_principal VARCHAR(15) NOT NULL,
+    telefono_secundario VARCHAR(15),
     
     -- Dirección
     calle VARCHAR(100),
@@ -27,7 +27,7 @@ CREATE TABLE clinica."tPaciente" (
     -- Contacto de emergencia
     contacto_emergencia_nombre VARCHAR(120),
     contacto_emergencia_parentesco VARCHAR(50),
-    contacto_emergencia_telefono VARCHAR(13),
+    contacto_emergencia_telefono VARCHAR(15),
     
     -- Ocupación y referido
     ocupacion VARCHAR(100),

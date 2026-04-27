@@ -14,37 +14,37 @@ const createLimiter = (minutes: number, max: number, message: string) =>
     });
 
 // Registro
-const registerLimiter = createLimiter(15, 5,
+const registerLimiter = createLimiter(15, 20,
     "Demasiados intentos de registro. Intenta más tarde."
 );
 
 // Login
-const loginLimiter = createLimiter(10, 10,
+const loginLimiter = createLimiter(10, 30,
     "Demasiados intentos de inicio de sesión. Intenta más tarde."
 );
 
 // Enviar código de verificación de correo
-const sendVerificationLimiter = createLimiter(15, 3,
+const sendVerificationLimiter = createLimiter(15, 30,
     "Demasiados envíos de código de verificación. Intenta más tarde."
 );
 
 // Verificar código de correo
-const verifyEmailLimiter = createLimiter(15, 10,
+const verifyEmailLimiter = createLimiter(15, 30,
     "Demasiados intentos de verificación. Intenta más tarde."
 );
 
 // Solicitar restablecimiento de contraseña
-const passwordResetLimiter = createLimiter(60, 3,
+const passwordResetLimiter = createLimiter(60, 30,
     "Demasiadas solicitudes de restablecimiento. Intenta más tarde."
 );
 
 // Validar código de recuperación
-const verifyPasswordCodeLimiter = createLimiter(15, 10,
+const verifyPasswordCodeLimiter = createLimiter(15, 30,
     "Demasiados intentos de validación de código. Intenta más tarde."
 );
 
 // Resetear contraseña
-const resetPasswordLimiter = createLimiter(60, 3,
+const resetPasswordLimiter = createLimiter(60, 30,
     "Demasiados cambios de contraseña. Intenta más tarde."
 );
 

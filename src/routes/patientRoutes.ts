@@ -11,8 +11,11 @@ class PatientRoutes {
     }
 
     config(): void {
-        this.router.post('/create', authMiddleware, requirePaidSubscription, patientController.create);
-        this.router.get('/getPatient', authMiddleware, requirePaidSubscription, patientController.list);
+        this.router.post('/', authMiddleware, requirePaidSubscription, patientController.create);
+        this.router.get('/', authMiddleware, requirePaidSubscription, patientController.list);
+        //this.router.get('/:id', authMiddleware, requirePaidSubscription, patientController.getById);
+        //this.router.put('/:id', authMiddleware, requirePaidSubscription, patientController.update);
+        //this.router.patch('/:id/deactivate', authMiddleware, requirePaidSubscription, patientController.deactivate);
     }
 }
 

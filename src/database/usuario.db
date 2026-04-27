@@ -1,8 +1,32 @@
+-- Base de Datos para TODONTO
+
 CREATE TABLE usuario."tRolUsuario" (
     id_rol INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre_rol VARCHAR(40) NOT NULL,
     descripcion_rol VARCHAR(200) NULL,
     estatus_rol BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE usuario."tTipoSuscripcion" (
+    id_tipo_suscripcion INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    descripcion TEXT,
+    duracion_dias INT, -- NULL = sin expiración
+    precio DECIMAL(10,2) NOT NULL,
+    moneda CHAR(3) DEFAULT 'MXN',
+
+    -- Límites del plan (NULL = ilimitado)
+    max_pacientes INT NULL,
+    max_citas_mes INT NULL,
+    max_recetas_mes INT NULL,
+
+    -- Comportamiento
+    requiere_metodo_pago BOOLEAN DEFAULT FALSE,
+    es_prueba BOOLEAN DEFAULT FALSE, -- true solo para el plan de prueba
+
+    -- Stripe
+    stripe_price_id VARCHAR(100) NULL, -- price_xxx de Stripe
+    activo BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE usuario."tUsuario" (
@@ -12,7 +36,7 @@ CREATE TABLE usuario."tUsuario" (
     apellido_materno VARCHAR(60),
     correo_electronico VARCHAR(150) UNIQUE NOT NULL,
     correo_verificado BOOLEAN DEFAULT FALSE,
-    numero_telefono VARCHAR(13) NOT NULL,
+    numero_telefono VARCHAR(15) NOT NULL,
     foto_perfil TEXT,
     fecha_nacimiento DATE,
     sexo_usuario CHAR(1) CHECK (sexo_usuario IN ('M','F','O')),
@@ -21,6 +45,9 @@ CREATE TABLE usuario."tUsuario" (
     fecha_aceptacion_aviso TIMESTAMP,
     acepta_terminos_condiciones BOOLEAN DEFAULT FALSE,
     fecha_aceptacion_terminos TIMESTAMP,
+
+    -- Stripe
+    stripe_customer_id VARCHAR(100) NULL UNIQUE, -- cus_xxx
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP NULL,
     id_rol_usuario INT REFERENCES usuario."tRolUsuario"(id_rol)
@@ -49,6 +76,18 @@ CREATE TABLE usuario."lAcceso" (
     fecha_error_log TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE usuario."lStripe" (
+    id_log_stripe INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE SET NULL,
+    mensaje_error VARCHAR(500),
+    detalle_error TEXT,
+    clase VARCHAR(100),
+    metodo VARCHAR(100),
+    ip_address INET,
+    user_agent TEXT,
+    fecha_error_log TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE usuario."tSesion" (
     id_sesion UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_usuario INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
@@ -61,14 +100,18 @@ CREATE TABLE usuario."tSesion" (
     revoked_at TIMESTAMP
 );
 
-CREATE TABLE usuario."tTipoSuscripcion" (
-    id_tipo_suscripcion INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nombre VARCHAR(50) NOT NULL,
-    descripcion TEXT,
-    duracion_dias INT,
-    precio DECIMAL(10,2) NOT NULL,
-    moneda CHAR(3) DEFAULT 'MXN',
-    activo BOOLEAN DEFAULT TRUE
+CREATE TABLE usuario."tMetodoPago" (
+    id_metodo INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
+    stripe_payment_method_id VARCHAR(100) NOT NULL UNIQUE, -- pm_xxx
+    tipo VARCHAR(20) NOT NULL, -- 'card', 'oxxo', 'spei'
+    marca VARCHAR(20), -- 'visa', 'mastercard', etc.
+    ultimos_digitos CHAR(4),
+    expira_mes INT CHECK (expira_mes BETWEEN 1 AND 12),
+    expira_anio INT,
+    es_predeterminado BOOLEAN DEFAULT FALSE,
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE usuario."tUsuarioSuscripcion" (
@@ -76,58 +119,120 @@ CREATE TABLE usuario."tUsuarioSuscripcion" (
     id_usuario INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
     id_tipo_suscripcion INT NOT NULL REFERENCES usuario."tTipoSuscripcion"(id_tipo_suscripcion),
     fecha_inicio TIMESTAMP DEFAULT NOW(),
-    fecha_fin TIMESTAMP,
+    fecha_fin TIMESTAMP, -- NULL = sin expiración (plan Inicio)
     estado VARCHAR(20) DEFAULT 'activa' CHECK (estado IN ('activa', 'cancelada', 'expirada', 'pendiente')),
+
+    -- Stripe
+    stripe_subscription_id VARCHAR(100) NULL UNIQUE, -- sub_xxx (NULL para plan Inicio y Prueba sin cargo)
+
+    -- Historial
+    convertida_desde_prueba BOOLEAN DEFAULT FALSE, -- true si el usuario venía de una prueba
+    cancelar_al_vencer BOOLEAN DEFAULT FALSE, -- true si el usuario canceló pero aún tiene acceso
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP NULL
 );
 
+CREATE UNIQUE INDEX idx_usuario_suscripcion_activa ON usuario."tUsuarioSuscripcion" (id_usuario) WHERE estado = 'activa';
+
 CREATE TABLE usuario."tPago" (
     id_pago INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_suscripcion INT NOT NULL REFERENCES usuario."tUsuarioSuscripcion"(id_suscripcion) ON DELETE CASCADE,
+    id_tipo_suscripcion INT REFERENCES usuario."tTipoSuscripcion"(id_tipo_suscripcion),
+    id_metodo_pago INT REFERENCES usuario."tMetodoPago"(id_metodo),
     monto DECIMAL(10,2) NOT NULL,
     moneda CHAR(3) DEFAULT 'MXN',
     fecha_pago TIMESTAMP DEFAULT NOW(),
-    metodo_pago VARCHAR(50), -- 'tarjeta', 'paypal', 'oxxo', etc.
-    ultimos_digitos VARCHAR(4), -- para tarjetas
-    id_transaccion_gateway VARCHAR(100), -- ID de Stripe, PayPal, etc.
+    metodo_pago VARCHAR(50), -- 'card', 'oxxo', 'spei'
+    ultimos_digitos VARCHAR(4),
+
+    -- Stripe
+    stripe_payment_intent_id VARCHAR(100) NULL, -- pi_xxx
+    stripe_invoice_id VARCHAR(100) NULL, -- in_xxx (para suscripciones recurrentes)
     estado_pago VARCHAR(20) CHECK (estado_pago IN ('exitoso', 'fallido', 'pendiente', 'reembolsado')),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Índices
-CREATE INDEX IF NOT EXISTS idx_usuario_telefono ON usuario."tUsuario" (numero_telefono);
-CREATE INDEX IF NOT EXISTS idx_usuario_correo ON usuario."tUsuario" (correo_electronico);
-CREATE INDEX IF NOT EXISTS idx_acceso_id_usuario ON usuario."tAcceso" (id_usuario);
 
+-- Índices
+
+-- Usuario
+CREATE INDEX idx_usuario_telefono ON usuario."tUsuario" (numero_telefono);
+CREATE INDEX idx_usuario_correo ON usuario."tUsuario" (correo_electronico);
+CREATE INDEX idx_usuario_stripe ON usuario."tUsuario" (stripe_customer_id);
+ 
+-- Acceso
+CREATE INDEX idx_acceso_id_usuario ON usuario."tAcceso" (id_usuario);
+CREATE INDEX idx_acceso_bloqueo ON usuario."tAcceso" (bloqueado_hasta) WHERE bloqueado_hasta IS NOT NULL;
+ 
+-- Log
+CREATE INDEX idx_log_fecha ON usuario."lAcceso" (fecha_error_log);
+CREATE INDEX idx_log_usuario ON usuario."lAcceso" (id_usuario);
+CREATE INDEX idx_log_ip ON usuario."lAcceso" (ip_address);
+ 
+-- Sesiones
 CREATE INDEX idx_sesion_usuario ON usuario."tSesion" (id_usuario);
 CREATE INDEX idx_sesion_expires ON usuario."tSesion" (expires_at);
 CREATE INDEX idx_sesion_token_hash ON usuario."tSesion" (refresh_token_hash);
 CREATE INDEX idx_sesion_revoked ON usuario."tSesion" (revoked) WHERE revoked = FALSE;
-CREATE INDEX idx_acceso_bloqueo ON usuario."tAcceso" (bloqueado_hasta) WHERE bloqueado_hasta IS NOT NULL;
-
-CREATE INDEX idx_log_fecha ON usuario."lAcceso" (fecha_error_log);
-CREATE INDEX idx_log_usuario ON usuario."lAcceso" (id_usuario);
-CREATE INDEX idx_log_ip ON usuario."lAcceso" (ip_address);
-
-CREATE INDEX idx_usuario_suscripcion ON usuario."tUsuarioSuscripcion" (id_usuario);
+ 
+-- Métodos de pago
+CREATE INDEX idx_metodo_pago_usuario ON usuario."tMetodoPago" (id_usuario);
+ 
+-- Suscripciones
+CREATE INDEX idx_suscripcion_usuario ON usuario."tUsuarioSuscripcion" (id_usuario);
 CREATE INDEX idx_suscripcion_fecha_fin ON usuario."tUsuarioSuscripcion" (fecha_fin) WHERE estado = 'activa';
+CREATE INDEX idx_suscripcion_stripe ON usuario."tUsuarioSuscripcion" (stripe_subscription_id);
+ 
+-- Pagos
+CREATE INDEX idx_pago_suscripcion ON usuario."tPago" (id_suscripcion);
+CREATE INDEX idx_pago_stripe_pi ON usuario."tPago" (stripe_payment_intent_id);
+
 
 -- Inserts iniciales
-INSERT INTO usuario."tRolUsuario" (nombre_rol, descripcion_rol) 
-VALUES ('Administrador', 'Acceso a todo el sistema'), ('Doctor', 'Atención a pacientes');
 
-INSERT INTO usuario."tTipoSuscripcion" 
-(nombre, descripcion, duracion_dias, precio, moneda, activo)
-VALUES 
-('Mensual', 'Suscripción mensual renovable', 30, 299.00, 'MXN', true),
-('Anual', 'Suscripción anual con descuento', 365, 2990.00, 'MXN', true),
-('Prueba', 'Periodo de prueba gratuito (7 días)', 7, 0.00, 'MXN', true),
-('De por vida', 'Licencia perpetua sin expiración', NULL, 4999.00, 'MXN', true),
-('Inicio', 'Ninguna suscripción, solo registro', NULL, 0.00, 'MXN', true);
+INSERT INTO usuario."tRolUsuario" (nombre_rol, descripcion_rol) VALUES
+    ('Administrador', 'Acceso completo al sistema'),
+    ('Doctor', 'Gestión de pacientes y consultas');
+ 
+INSERT INTO usuario."tTipoSuscripcion"
+    (nombre, descripcion, duracion_dias, precio, moneda,
+     max_pacientes, max_citas_mes, max_recetas_mes,
+     requiere_metodo_pago, es_prueba, stripe_price_id, activo)
+VALUES
+    -- Plan gratuito permanente (freemium)
+    ('Inicio',
+     'Acceso gratuito con funcionalidad limitada',
+     NULL, 0.00, 'MXN',
+     10, 5, 5,
+     FALSE, FALSE, NULL, TRUE),
+ 
+    -- Prueba de 14 días (requiere tarjeta, sin cobro)
+    ('Prueba',
+     'Acceso completo por 14 días. Requiere registrar método de pago.',
+     14, 0.00, 'MXN',
+     NULL, NULL, NULL,
+     TRUE, TRUE, NULL, TRUE),
+ 
+    -- Plan mensual
+    ('Profesional',
+     'Plan mensual con acceso completo a todas las funciones',
+     30, 399.00, 'MXN',
+     NULL, NULL, NULL,
+     TRUE, FALSE, 'price_1TQcNCIsbtJs5QhyRhFdMG3Q', TRUE),
+ 
+    -- Plan anual (equivale a $299/mes, ahorro del 25%)
+    ('Profesional Anual',
+     'Plan anual con descuento del 25%. Equivale a $299/mes.',
+     365, 3588.00, 'MXN',
+     NULL, NULL, NULL,
+     TRUE, FALSE, 'price_1TQcO2IsbtJs5QhyIj9TIGXi', TRUE);
 
--- Funciones necesarias
--- Funcion de registro
+
+-- Funciones
+
+-- Registrar usuario
+-- Crea usuario + control de acceso + suscripción Inicio
+
 CREATE OR REPLACE FUNCTION usuario.registrar_usuario(
     _nombre_usuario VARCHAR,
     _apellido_paterno VARCHAR,
@@ -146,14 +251,12 @@ DECLARE
     nuevo_id INT;
     resultado JSON;
     fecha_ahora TIMESTAMP := NOW();
-    suscripcion_id INT;
-    duracion INT;
+    id_plan_inicio INT;
 BEGIN
     IF _acepta_aviso_privacidad IS FALSE OR _acepta_terminos_condiciones IS FALSE THEN
         RAISE EXCEPTION 'Debe aceptar el aviso de privacidad y los términos y condiciones para registrarse';
     END IF;
-
-    -- Insertar en tUsuario
+ 
     INSERT INTO usuario."tUsuario" (
         nombre_usuario, apellido_paterno, apellido_materno,
         correo_electronico, numero_telefono, fecha_nacimiento,
@@ -168,157 +271,379 @@ BEGIN
         _acepta_terminos_condiciones, fecha_ahora
     )
     RETURNING id_usuario INTO nuevo_id;
-
-    -- Insertar en tAcceso
+ 
     INSERT INTO usuario."tAcceso" (id_usuario)
     VALUES (nuevo_id);
-
-    -- Obtener datos del tipo de suscripción 'Inicio'
-    SELECT id_tipo_suscripcion, duracion_dias
-    INTO suscripcion_id, duracion
+ 
+    SELECT id_tipo_suscripcion INTO id_plan_inicio
     FROM usuario."tTipoSuscripcion"
-    WHERE nombre = 'Inicio' AND activo = true;
-
-    -- Insertar en tUsuarioSuscripcion con fecha_fin según duración (NULL si duracion es NULL)
+    WHERE nombre = 'Inicio' AND activo = TRUE;
+ 
     INSERT INTO usuario."tUsuarioSuscripcion" (
         id_usuario, id_tipo_suscripcion, fecha_inicio, fecha_fin, estado
     ) VALUES (
-        nuevo_id, suscripcion_id, fecha_ahora,
-        CASE WHEN duracion IS NOT NULL THEN fecha_ahora + (duracion || ' days')::INTERVAL ELSE NULL END,
-        'activa'
+        nuevo_id, id_plan_inicio, fecha_ahora, NULL, 'activa'
     );
-
-    -- Devolver datos del nuevo usuario
+ 
     SELECT json_build_object(
-        'id', nuevo_id,
-        'nombre_usuario', _nombre_usuario,
-        'correo_electronico', _correo_electronico
+        'id',                   nuevo_id,
+        'nombre_usuario',       _nombre_usuario,
+        'correo_electronico',   _correo_electronico
     ) INTO resultado;
-
+ 
     RETURN resultado;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Funcion para suscripciones expiradas
-CREATE OR REPLACE FUNCTION usuario.actualizar_suscripciones_expiradas()
-RETURNS INTEGER AS $$
+
+-- Activar prueba de 14 días
+-- Se llama cuando el doctor registra su tarjeta en Stripe.
+-- Stripe crea el customer_id; se pasa aquí para guardarlo.
+
+CREATE OR REPLACE FUNCTION usuario.activar_prueba_con_suscripcion(
+    _id_usuario INT,
+    _stripe_customer_id VARCHAR,
+    _stripe_payment_method_id VARCHAR,
+    _tipo_metodo VARCHAR,
+    _marca VARCHAR,
+    _ultimos_digitos CHAR(4),
+    _expira_mes INT,
+    _expira_anio INT,
+    _stripe_subscription_id VARCHAR,
+    _fecha_fin_trial TIMESTAMP
+)
+RETURNS JSON AS $$
 DECLARE
-    actualizadas_primera INTEGER;
-    actualizadas_segunda INTEGER;
-    total INTEGER;
+    fecha_ahora TIMESTAMP := NOW();
+    id_plan_prueba INT;
+    id_suscripcion_actual INT;
+    nueva_suscripcion INT;
+BEGIN
+    -- Actualizar stripe_customer_id
+    UPDATE usuario."tUsuario"
+    SET stripe_customer_id = _stripe_customer_id, updated_at = fecha_ahora
+    WHERE id_usuario = _id_usuario;
+
+    -- Desmarcar otros métodos y luego insertar/actualizar el nuevo como predeterminado
+    UPDATE usuario."tMetodoPago"
+    SET es_predeterminado = FALSE
+    WHERE id_usuario = _id_usuario AND es_predeterminado = TRUE;
+
+    INSERT INTO usuario."tMetodoPago" (
+        id_usuario, stripe_payment_method_id, tipo, marca,
+        ultimos_digitos, expira_mes, expira_anio, es_predeterminado
+    ) VALUES (
+        _id_usuario, _stripe_payment_method_id, _tipo_metodo, _marca,
+        _ultimos_digitos, _expira_mes, _expira_anio, TRUE
+    )
+    ON CONFLICT (stripe_payment_method_id) DO UPDATE
+    SET es_predeterminado = TRUE,
+        expira_mes = EXCLUDED.expira_mes,
+        expira_anio = EXCLUDED.expira_anio,
+        marca = EXCLUDED.marca,
+        tipo = EXCLUDED.tipo,
+        ultimos_digitos = EXCLUDED.ultimos_digitos;
+
+    -- Verificar que el usuario esté en plan Inicio (única prueba posible)
+    SELECT us.id_suscripcion INTO id_suscripcion_actual
+    FROM usuario."tUsuarioSuscripcion" us
+    JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
+    WHERE us.id_usuario = _id_usuario
+      AND us.estado = 'activa'
+      AND ts.nombre = 'Inicio'
+    FOR UPDATE;
+
+    IF id_suscripcion_actual IS NULL THEN
+        RAISE EXCEPTION 'El usuario no está en el plan Inicio o ya tuvo una prueba activa';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM usuario."tUsuarioSuscripcion" us
+        JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
+        WHERE us.id_usuario = _id_usuario AND ts.es_prueba = TRUE
+    ) THEN
+        RAISE EXCEPTION 'El usuario ya utilizó su período de prueba';
+    END IF;
+
+    -- Obtener id del plan Prueba
+    SELECT id_tipo_suscripcion INTO id_plan_prueba
+    FROM usuario."tTipoSuscripcion"
+    WHERE nombre = 'Prueba' AND activo = TRUE;
+
+    -- Expirar suscripción actual (Inicio)
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET estado = 'expirada', updated_at = fecha_ahora
+    WHERE id_suscripcion = id_suscripcion_actual;
+
+    -- Crear suscripción de prueba con referencia a Stripe y fecha_fin
+    INSERT INTO usuario."tUsuarioSuscripcion" (
+        id_usuario, id_tipo_suscripcion, fecha_inicio, fecha_fin, estado,
+        stripe_subscription_id
+    ) VALUES (
+        _id_usuario, id_plan_prueba,
+        fecha_ahora,
+        _fecha_fin_trial,
+        'activa',
+        _stripe_subscription_id
+    )
+    RETURNING id_suscripcion INTO nueva_suscripcion;
+
+    RETURN json_build_object(
+        'ok',               TRUE,
+        'id_suscripcion',   nueva_suscripcion,
+        'fecha_fin',        _fecha_fin_trial
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Convertir a plan de pago
+-- Se llama desde el webhook de Stripe cuando el pago es exitoso.
+
+CREATE OR REPLACE FUNCTION usuario.convertir_a_plan_pago(
+    _id_usuario INT,
+    _nombre_plan VARCHAR,
+    _stripe_subscription_id VARCHAR,
+    _stripe_payment_intent_id VARCHAR,
+    _stripe_invoice_id VARCHAR,
+    _monto DECIMAL,
+    _id_metodo_pago INT
+)
+RETURNS JSON AS $$
+DECLARE
+    fecha_ahora TIMESTAMP := NOW();
+    id_plan INT;
+    duracion INT;
+    venia_de_prueba BOOLEAN := FALSE;
+    suscripcion_existente RECORD;
+    nueva_suscripcion INT;
+BEGIN
+    -- 1. Obtener datos del plan
+    SELECT id_tipo_suscripcion, duracion_dias
+    INTO id_plan, duracion
+    FROM usuario."tTipoSuscripcion"
+    WHERE nombre = _nombre_plan AND activo = TRUE;
+
+    IF id_plan IS NULL THEN
+        RAISE EXCEPTION 'Plan no encontrado: %', _nombre_plan;
+    END IF;
+
+    -- 2. Buscar si ya existe una suscripción con ese stripe_subscription_id
+    SELECT us.id_suscripcion, us.id_tipo_suscripcion, ts.es_prueba
+    INTO suscripcion_existente
+    FROM usuario."tUsuarioSuscripcion" us
+    JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
+    WHERE us.stripe_subscription_id = _stripe_subscription_id
+    FOR UPDATE;
+
+    IF suscripcion_existente.id_suscripcion IS NOT NULL THEN
+        -- Es una conversión
+        venia_de_prueba := suscripcion_existente.es_prueba;
+
+        UPDATE usuario."tUsuarioSuscripcion"
+        SET id_tipo_suscripcion = id_plan,
+            fecha_inicio = fecha_ahora,
+            fecha_fin = CASE WHEN duracion IS NOT NULL
+                             THEN fecha_ahora + (duracion || ' days')::INTERVAL
+                             ELSE NULL END,
+            estado = 'activa',
+            convertida_desde_prueba = venia_de_prueba,
+            updated_at = fecha_ahora
+        WHERE id_suscripcion = suscripcion_existente.id_suscripcion
+        RETURNING id_suscripcion INTO nueva_suscripcion;
+    ELSE
+        -- Es una suscripción nueva: expirar cualquier otra activa y luego insertar
+        UPDATE usuario."tUsuarioSuscripcion"
+        SET estado = 'expirada', updated_at = fecha_ahora
+        WHERE id_usuario = _id_usuario AND estado = 'activa';
+
+        INSERT INTO usuario."tUsuarioSuscripcion" (
+            id_usuario, id_tipo_suscripcion,
+            fecha_inicio, fecha_fin, estado,
+            stripe_subscription_id,
+            convertida_desde_prueba
+        ) VALUES (
+            _id_usuario, id_plan,
+            fecha_ahora,
+            CASE WHEN duracion IS NOT NULL
+                 THEN fecha_ahora + (duracion || ' days')::INTERVAL
+                 ELSE NULL END,
+            'activa',
+            _stripe_subscription_id,
+            FALSE  -- No viene de prueba
+        )
+        RETURNING id_suscripcion INTO nueva_suscripcion;
+    END IF;
+
+    -- 3. Registrar el pago (si no está duplicado)
+    INSERT INTO usuario."tPago" (
+        id_suscripcion, id_tipo_suscripcion, id_metodo_pago,
+        monto, moneda, metodo_pago,
+        stripe_payment_intent_id, stripe_invoice_id,
+        estado_pago
+    )
+    SELECT nueva_suscripcion, id_plan, _id_metodo_pago,
+           _monto, 'MXN', 'card',
+           _stripe_payment_intent_id, _stripe_invoice_id,
+           'exitoso'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM usuario."tPago"
+        WHERE stripe_invoice_id = _stripe_invoice_id
+    );
+
+    RETURN json_build_object(
+        'ok', TRUE,
+        'id_suscripcion', nueva_suscripcion,
+        'plan', _nombre_plan,
+        'desde_prueba', venia_de_prueba
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Renovar suscripción automaticamente
+CREATE OR REPLACE FUNCTION usuario.renovar_suscripcion(
+    _stripe_subscription_id VARCHAR,
+    _nuevo_monto DECIMAL,
+    _stripe_payment_intent_id VARCHAR,
+    _stripe_invoice_id VARCHAR
+)
+RETURNS VOID AS $$
+DECLARE
+    sub RECORD;
+BEGIN
+    SELECT us.id_suscripcion, ts.duracion_dias
+    INTO sub
+    FROM usuario."tUsuarioSuscripcion" us
+    JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
+    WHERE us.stripe_subscription_id = _stripe_subscription_id
+      AND us.estado = 'activa';
+
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET fecha_fin = fecha_fin + (sub.duracion_dias || ' days')::INTERVAL,
+        updated_at = NOW()
+    WHERE id_suscripcion = sub.id_suscripcion;
+
+    INSERT INTO usuario."tPago" (id_suscripcion, monto, stripe_payment_intent_id, stripe_invoice_id, estado_pago)
+    VALUES (sub.id_suscripcion, _nuevo_monto, _stripe_payment_intent_id, _stripe_invoice_id, 'exitoso');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Cancelar suscripción (acceso hasta fecha_fin)
+-- Stripe gestiona la no renovación; aquí solo marcamos la BD.
+
+CREATE OR REPLACE FUNCTION usuario.cancelar_suscripcion(_id_usuario INT)
+RETURNS JSON AS $$
+DECLARE
+    fecha_fin_actual TIMESTAMP;
 BEGIN
     UPDATE usuario."tUsuarioSuscripcion"
-    SET estado = 'pendiente',
-        fecha_fin = NOW() + INTERVAL '2 days',
-        updated_at = NOW()
+    SET cancelar_al_vencer = TRUE, updated_at = NOW()
+    WHERE id_usuario = _id_usuario AND estado = 'activa'
+    RETURNING fecha_fin INTO fecha_fin_actual;
+ 
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No se encontró suscripción activa para el usuario %', _id_usuario;
+    END IF;
+ 
+    RETURN json_build_object(
+        'ok',           TRUE,
+        'acceso_hasta', fecha_fin_actual
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+--  Expirar suscripciones vencidas
+--  Ejecutar periódicamente.
+--  Stripe maneja renovaciones; esta función solo expira
+--  pruebas y suscripciones canceladas que llegaron a su fin.
+
+CREATE OR REPLACE FUNCTION usuario.expirar_suscripciones_vencidas()
+RETURNS INTEGER AS $$
+DECLARE
+    id_plan_inicio  INT;
+    total INTEGER := 0;
+    actualizadas INTEGER;
+    rec RECORD;
+BEGIN
+    SELECT id_tipo_suscripcion INTO id_plan_inicio
+    FROM usuario."tTipoSuscripcion"
+    WHERE nombre = 'Inicio' AND activo = TRUE;
+ 
+    -- 1. Expirar suscripciones que llegaron a su fecha_fin
+    -- (pruebas expiradas y planes cancelados que llegaron al vencimiento)
+    UPDATE usuario."tUsuarioSuscripcion"
+    SET estado = 'expirada', updated_at = NOW()
     WHERE estado = 'activa'
       AND fecha_fin IS NOT NULL
       AND fecha_fin < NOW();
-    
-    GET DIAGNOSTICS actualizadas_primera = ROW_COUNT;
-    
-    UPDATE usuario."tUsuarioSuscripcion"
-    SET estado = 'expirada', updated_at = NOW()
-    WHERE estado = 'pendiente'
-      AND updated_at < NOW() - INTERVAL '2 days';
-    
-    GET DIAGNOSTICS actualizadas_segunda = ROW_COUNT;
-    
-    total := actualizadas_primera + actualizadas_segunda;
-    
-    RETURN total;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Funcion para renovar suscripciones
-CREATE OR REPLACE FUNCTION usuario.reactivar_suscripcion(
-    _id_suscripcion INT,
-    _nuevos_dias INT  -- días adicionales a partir de hoy
-)
-RETURNS VOID AS $$
-BEGIN
-    UPDATE usuario."tUsuarioSuscripcion"
-    SET estado = 'activa',
-        fecha_inicio = NOW(),
-        fecha_fin = NOW() + (_nuevos_dias || ' days')::INTERVAL,
-        updated_at = NOW()
-    WHERE id_suscripcion = _id_suscripcion
-      AND estado IN ('pendiente', 'expirada');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Funcion para cancelar suscripciones (acceso hasta la fecha fin)
-CREATE OR REPLACE FUNCTION usuario.finalizar_suscripcion_a_inicio()
-RETURNS INTEGER AS $$
-DECLARE
-    filas_creadas INTEGER := 0;
-    id_inicio INT;
-    rec RECORD;
-BEGIN
-    -- Obtener el id del plan 'Inicio'
-    SELECT id_tipo_suscripcion INTO id_inicio
-    FROM usuario."tTipoSuscripcion"
-    WHERE nombre = 'Inicio' AND activo = true;
-
-    IF id_inicio IS NULL THEN
-        RAISE EXCEPTION 'No se encontró el plan Inicio';
-    END IF;
-
-    -- Buscar suscripciones canceladas que ya expiraron (fecha_fin <= NOW() o NULL)
-    -- y que el usuario NO tenga ya una suscripción activa de 'Inicio' (para evitar duplicados)
-    FOR rec IN 
-        SELECT us.id_usuario, us.id_suscripcion
+ 
+    GET DIAGNOSTICS actualizadas = ROW_COUNT;
+    total := total + actualizadas;
+ 
+    -- 2. Regresar al plan Inicio a quienes expiraron y no tienen plan activo
+    FOR rec IN
+        SELECT DISTINCT us.id_usuario
         FROM usuario."tUsuarioSuscripcion" us
-        WHERE us.estado = 'cancelada'
-          AND (us.fecha_fin IS NULL OR us.fecha_fin <= NOW())
+        WHERE us.estado = 'expirada'
           AND NOT EXISTS (
               SELECT 1 FROM usuario."tUsuarioSuscripcion" us2
               WHERE us2.id_usuario = us.id_usuario
                 AND us2.estado = 'activa'
-                AND us2.id_tipo_suscripcion = id_inicio
           )
     LOOP
-        -- Insertar NUEVA suscripción de 'Inicio' activa
         INSERT INTO usuario."tUsuarioSuscripcion" (
-            id_usuario,
-            id_tipo_suscripcion,
-            fecha_inicio,
-            fecha_fin,
-            estado,
-            created_at,
-            updated_at
+            id_usuario, id_tipo_suscripcion,
+            fecha_inicio, fecha_fin, estado
         ) VALUES (
-            rec.id_usuario,
-            id_inicio,
-            NOW(),
-            NULL,
-            'activa',
-            NOW(),
-            NULL
-        );
-        filas_creadas := filas_creadas + 1;
+            rec.id_usuario, id_plan_inicio,
+            NOW(), NULL, 'activa'
+        )
+        ON CONFLICT (id_usuario) WHERE estado = 'activa' DO NOTHING;
     END LOOP;
-
-    RETURN filas_creadas;
+ 
+    RETURN total;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-WITH duplicados AS (
-    SELECT id_suscripcion, id_usuario, created_at,
-           ROW_NUMBER() OVER (PARTITION BY id_usuario ORDER BY created_at DESC) as rn
-    FROM usuario."tUsuarioSuscripcion"
-    WHERE id_tipo_suscripcion = (SELECT id_tipo_suscripcion FROM usuario."tTipoSuscripcion" WHERE nombre = 'Inicio')
-      AND estado = 'activa'
-)
-UPDATE usuario."tUsuarioSuscripcion"
-SET estado = 'expirada', updated_at = NOW()
-WHERE id_suscripcion IN (
-    SELECT id_suscripcion FROM duplicados WHERE rn > 1
-);
 
-CREATE UNIQUE INDEX idx_usuario_suscripcion_activa 
-ON usuario."tUsuarioSuscripcion" (id_usuario) 
-WHERE estado = 'activa';
+--  Ver plan activo de un usuario
+--  Útil para validar límites en el backend.
+
+CREATE OR REPLACE FUNCTION usuario.obtener_plan_activo(_id_usuario INT)
+RETURNS JSON AS $$
+DECLARE
+    resultado JSON;
+BEGIN
+    SELECT json_build_object(
+        'id_suscripcion', us.id_suscripcion,
+        'plan', ts.nombre,
+        'precio', ts.precio,
+        'max_pacientes', ts.max_pacientes,
+        'max_citas_mes', ts.max_citas_mes,
+        'max_recetas_mes', ts.max_recetas_mes,
+        'es_prueba', ts.es_prueba,
+        'fecha_fin', us.fecha_fin,
+        'cancelar_al_vencer', us.cancelar_al_vencer,
+        'stripe_subscription_id', us.stripe_subscription_id
+    )
+    INTO resultado
+    FROM usuario."tUsuarioSuscripcion" us
+    JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
+    WHERE us.id_usuario = _id_usuario
+      AND us.estado = 'activa'
+    LIMIT 1;
+ 
+    RETURN resultado;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 -- Permisos de acceso
 GRANT USAGE ON SCHEMA usuario TO anon, authenticated, service_role;
