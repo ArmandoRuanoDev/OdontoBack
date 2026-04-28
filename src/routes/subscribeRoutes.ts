@@ -27,9 +27,11 @@ class SubscribeRoutes {
     }
 
     config() : void {
-        this.router.get("/plans", authMiddleware, subscriptionController.getPlans);
+        this.router.get("/plans", subscriptionController.getPlans);
         this.router.post("/trial", authMiddleware, trialLimiter, subscriptionController.startTrial);
         this.router.post("/subscribe", authMiddleware,subscribeLimiter, subscriptionController.subscribe);
+        this.router.post("/change-plan", authMiddleware, subscriptionController.changePlan);
+        this.router.post("/cancel", authMiddleware, subscriptionController.cancel);
     }
 }
 

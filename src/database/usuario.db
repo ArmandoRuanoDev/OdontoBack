@@ -152,6 +152,12 @@ CREATE TABLE usuario."tPago" (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE usuario."tWebhookEvent" (
+    id_evento BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    stripe_event_id VARCHAR(255) UNIQUE NOT NULL,
+    procesado_en TIMESTAMP DEFAULT NOW()
+);
+
 
 -- Índices
 
@@ -407,7 +413,8 @@ CREATE OR REPLACE FUNCTION usuario.convertir_a_plan_pago(
     _stripe_payment_intent_id VARCHAR,
     _stripe_invoice_id VARCHAR,
     _monto DECIMAL,
-    _id_metodo_pago INT
+    _id_metodo_pago INT,
+    _fecha_fin TIMESTAMP DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -417,8 +424,8 @@ DECLARE
     venia_de_prueba BOOLEAN := FALSE;
     suscripcion_existente RECORD;
     nueva_suscripcion INT;
+    fecha_fin_calculada TIMESTAMP;
 BEGIN
-    -- 1. Obtener datos del plan
     SELECT id_tipo_suscripcion, duracion_dias
     INTO id_plan, duracion
     FROM usuario."tTipoSuscripcion"
@@ -428,7 +435,13 @@ BEGIN
         RAISE EXCEPTION 'Plan no encontrado: %', _nombre_plan;
     END IF;
 
-    -- 2. Buscar si ya existe una suscripción con ese stripe_subscription_id
+    -- Priorizar la fecha de Stripe; solo calcular si no se proporcionó
+    fecha_fin_calculada := CASE
+        WHEN _fecha_fin IS NOT NULL THEN _fecha_fin
+        WHEN duracion IS NOT NULL THEN fecha_ahora + (duracion || ' days')::INTERVAL
+        ELSE NULL
+    END;
+
     SELECT us.id_suscripcion, us.id_tipo_suscripcion, ts.es_prueba
     INTO suscripcion_existente
     FROM usuario."tUsuarioSuscripcion" us
@@ -437,22 +450,18 @@ BEGIN
     FOR UPDATE;
 
     IF suscripcion_existente.id_suscripcion IS NOT NULL THEN
-        -- Es una conversión
         venia_de_prueba := suscripcion_existente.es_prueba;
 
         UPDATE usuario."tUsuarioSuscripcion"
         SET id_tipo_suscripcion = id_plan,
             fecha_inicio = fecha_ahora,
-            fecha_fin = CASE WHEN duracion IS NOT NULL
-                             THEN fecha_ahora + (duracion || ' days')::INTERVAL
-                             ELSE NULL END,
+            fecha_fin = fecha_fin_calculada,
             estado = 'activa',
             convertida_desde_prueba = venia_de_prueba,
             updated_at = fecha_ahora
         WHERE id_suscripcion = suscripcion_existente.id_suscripcion
         RETURNING id_suscripcion INTO nueva_suscripcion;
     ELSE
-        -- Es una suscripción nueva: expirar cualquier otra activa y luego insertar
         UPDATE usuario."tUsuarioSuscripcion"
         SET estado = 'expirada', updated_at = fecha_ahora
         WHERE id_usuario = _id_usuario AND estado = 'activa';
@@ -465,17 +474,14 @@ BEGIN
         ) VALUES (
             _id_usuario, id_plan,
             fecha_ahora,
-            CASE WHEN duracion IS NOT NULL
-                 THEN fecha_ahora + (duracion || ' days')::INTERVAL
-                 ELSE NULL END,
+            fecha_fin_calculada,
             'activa',
             _stripe_subscription_id,
-            FALSE  -- No viene de prueba
+            FALSE
         )
         RETURNING id_suscripcion INTO nueva_suscripcion;
     END IF;
 
-    -- 3. Registrar el pago (si no está duplicado)
     INSERT INTO usuario."tPago" (
         id_suscripcion, id_tipo_suscripcion, id_metodo_pago,
         monto, moneda, metodo_pago,
@@ -576,7 +582,7 @@ BEGIN
     FROM usuario."tTipoSuscripcion"
     WHERE nombre = 'Inicio' AND activo = TRUE;
  
-    -- 1. Expirar suscripciones que llegaron a su fecha_fin
+    -- Expirar suscripciones que llegaron a su fecha_fin
     -- (pruebas expiradas y planes cancelados que llegaron al vencimiento)
     UPDATE usuario."tUsuarioSuscripcion"
     SET estado = 'expirada', updated_at = NOW()
@@ -587,7 +593,7 @@ BEGIN
     GET DIAGNOSTICS actualizadas = ROW_COUNT;
     total := total + actualizadas;
  
-    -- 2. Regresar al plan Inicio a quienes expiraron y no tienen plan activo
+    -- Regresar al plan Inicio a quienes expiraron y no tienen plan activo
     FOR rec IN
         SELECT DISTINCT us.id_usuario
         FROM usuario."tUsuarioSuscripcion" us
@@ -643,6 +649,25 @@ BEGIN
     RETURN resultado;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Candado para bloqueo de usuarios
+CREATE OR REPLACE FUNCTION usuario.lock_usuario_suscripcion(_id_usuario INT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN pg_try_advisory_xact_lock(_id_usuario);
+END;
+$$;
+
+
+-- Ejecutar función diariamente
+SELECT cron.schedule(
+    'expirar-suscripciones-diario', -- nombre de la tarea
+    '0 3 * * *', -- Programación: a las 3:00 AM (UTC) todos los días
+    'SELECT usuario.expirar_suscripciones_vencidas();' -- La instrucción SQL
+);
 
 
 -- Permisos de acceso

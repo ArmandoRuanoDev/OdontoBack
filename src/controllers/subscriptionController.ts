@@ -138,6 +138,32 @@ class SubscriptionController {
         return res.status(400).json({ message: "price_id es requerido" });
       }
 
+      const { data: lockAcquired, error: lockError } = await supabase
+        .schema("usuario")
+        .rpc("lock_usuario_suscripcion", { _id_usuario: user.id_usuario })
+        .single();
+
+      if (lockError || !lockAcquired) {
+        return res.status(409).json({
+          message: "Ya hay un proceso de suscripción en curso. Intenta de nuevo en unos segundos."
+        });
+      }
+
+      // Verificar que no tenga ya un plan de pago activo
+      const { data: subActiva } = await supabase
+        .schema("usuario")
+        .from("tUsuarioSuscripcion")
+        .select("stripe_subscription_id")
+        .eq("id_usuario", user.id_usuario)
+        .eq("estado", "activa")
+        .not("stripe_subscription_id", "is", null)
+        .maybeSingle();
+
+      if (subActiva?.stripe_subscription_id) {
+        return res.status(400).json({
+          message: "Ya tienes un plan de pago activo. Usa /change-plan para actualizarlo.",
+        });
+      }
 
       // Obtener o crear el customer de Stripe
       const { data: usuarioDB, error: userDBError } = await supabase
@@ -274,45 +300,23 @@ class SubscriptionController {
         return res.status(400).json({ message: "Plan no encontrado para el price_id proporcionado." });
       }
 
-      // Crear la suscripción en Stripe (cobro inmediato)
+      // Crear la suscripción en Stripe (cobro inmediato o pendiente 3DS)
       const subscription = await stripe.subscriptions.create({
         customer: customerId,
         items: [{ price: price_id }],
         default_payment_method: paymentMethod,
         expand: ['latest_invoice.payment_intent'],
         metadata: { id_usuario: user.id_usuario },
-      });
+      }, {
+        idempotencyKey: `sub_${user.id_usuario}_${price_id}`
+      }) as any;
 
-      // Verificar que la suscripción esté activa (pago exitoso)
-      if (subscription.status !== 'active') {
-        return res.status(402).json({
-          message: "El pago no se pudo completar. Revisa tu método de pago.",
-        });
-      }
-
-      const invoice = (subscription as any).latest_invoice;
-      const paymentIntent = invoice?.payment_intent;
-
-      // Registrar en la base de datos con la función convertir_a_plan_pago
-      const { error: convertError } = await supabase
-        .schema("usuario")
-        .rpc("convertir_a_plan_pago", {
-          _id_usuario: user.id_usuario,
-          _nombre_plan: plan.nombre,
-          _stripe_subscription_id: subscription.id,
-          _stripe_payment_intent_id: paymentIntent?.id || null,
-          _stripe_invoice_id: invoice?.id || null,
-          _monto: paymentIntent?.amount ? paymentIntent.amount / 100 : plan.precio,
-          _id_metodo_pago: metodoPagoLocalId,
-        });
-
-      if (convertError) throw convertError;
-
+      // El webhook confirmará el pago.
       return res.json({
-        message: "Suscripción creada exitosamente",
+        message: "Suscripción creada. El pago se confirmará en breve.",
         subscription_id: subscription.id,
+        status: subscription.status, // Esto es informativo para el frontend
         plan: plan.nombre,
-        monto: paymentIntent?.amount ? paymentIntent.amount / 100 : plan.precio,
       });
 
     } catch (error: any) {
@@ -321,83 +325,197 @@ class SubscriptionController {
     }
   }
 
+  /**
+    * POST /api/sub/change-plan
+    * Cambia el plan actual del usuario.
+   */
   async changePlan(req: Request, res: Response) {
     try {
-      const user = (req as any).user;
-      const { new_price_id } = req.body;
+        const user = (req as any).user;
+        const { new_price_id } = req.body;
 
-      const { data: sub } = await supabase
+        if (!new_price_id) {
+            return res.status(400).json({ message: "new_price_id es requerido" });
+        }
+
+        // Obtener la suscripción activa con JOIN para obtener es_prueba
+        const { data: sub, error: subError } = await supabase
+            .schema("usuario")
+            .from("tUsuarioSuscripcion")
+            .select(`
+                id_suscripcion,
+                stripe_subscription_id,
+                id_tipo_suscripcion,
+                tTipoSuscripcion!inner(es_prueba)
+            `)
+            .eq("id_usuario", user.id_usuario)
+            .eq("estado", "activa")
+            .not("stripe_subscription_id", "is", null)
+            .single();
+
+        if (subError || !sub) {
+            return res.status(404).json({ message: "No tienes una suscripción activa para cambiar." });
+        }
+
+        // No permitir cambiar desde una prueba (debe usar subscribe)
+        if ((sub as any).tTipoSuscripcion?.es_prueba) {
+            return res.status(400).json({
+                message: "Estás en período de prueba. Usa /subscribe para elegir un plan de pago.",
+            });
+        }
+
+        // Obtener los datos del nuevo plan desde la base de datos
+        const { data: newPlan, error: planError } = await supabase
+            .schema("usuario")
+            .from("tTipoSuscripcion")
+            .select("id_tipo_suscripcion, nombre, duracion_dias")
+            .eq("stripe_price_id", new_price_id)
+            .single();
+
+        if (planError || !newPlan) {
+            return res.status(400).json({ message: "El plan solicitado no existe." });
+        }
+
+        // Recuperar la suscripción actual de Stripe para obtener el item de suscripción
+        const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
+
+        const subscriptionItem = stripeSub.items.data[0];
+        if (!subscriptionItem) {
+            return res.status(400).json({ message: "La suscripción no tiene items válidos" });
+        }
+
+        // Actualizar la suscripción en Stripe con prorrateo
+        await stripe.subscriptions.update(sub.stripe_subscription_id, {
+            items: [{
+                id: subscriptionItem.id,
+                price: new_price_id,
+            }],
+            proration_behavior: "create_prorations",
+        });
+
+        // Obtener la suscripción actualizada con retrieve
+        const updatedStripeSub: any = await stripe.subscriptions.retrieve(
+            sub.stripe_subscription_id,
+            { expand: ['items.data.price'] }
+        );
+        
+        const currentPeriodEnd = updatedStripeSub.current_period_end 
+          ?? updatedStripeSub.items?.data?.[0]?.current_period_end;
+        const nuevaFechaFin = currentPeriodEnd
+          ? new Date(currentPeriodEnd * 1000).toISOString()
+          : null;
+
+        const { error: updateError } = await supabase
+          .schema("usuario")
+          .from("tUsuarioSuscripcion")
+          .update({
+            id_tipo_suscripcion: newPlan.id_tipo_suscripcion,
+            fecha_fin: nuevaFechaFin,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id_suscripcion", sub.id_suscripcion);
+
+        if (updateError) throw updateError;
+
+        return res.json({
+          message: "Plan actualizado exitosamente",
+          plan: newPlan.nombre,
+          nueva_fecha_fin: nuevaFechaFin,
+        });
+    } catch (error: any) {
+      await logError(req, error, "Subscription", "changePlan", "usuario", "lStripe");
+      return res.status(500).json({ message: error.message || "Error al cambiar de plan" });
+    }
+  }
+
+  /**
+    * POST /api/sub/cancel
+    * Cancela el plan del usuario y pone el plan inicial.
+   */
+  async cancel(req: Request, res: Response) {
+    try {
+      const user = (req as any).user;
+
+      // Obtener suscripción activa con datos del tipo
+      const { data: sub, error: subError } = await supabase
         .schema("usuario")
         .from("tUsuarioSuscripcion")
-        .select("stripe_subscription_id")
+        .select(`
+          id_suscripcion,
+          stripe_subscription_id,
+          estado,
+          tTipoSuscripcion!inner(es_prueba, nombre)
+        `)
         .eq("id_usuario", user.id_usuario)
         .eq("estado", "activa")
         .not("stripe_subscription_id", "is", null)
         .single();
 
-      if (!sub)
-        return res.status(404).json({ message: "No subscription" });
+      if (subError || !sub) {
+        return res.status(400).json({ message: "No tienes un plan activo para cancelar." });
+      }
 
-      const stripeSub = await stripe.subscriptions.retrieve(
-        sub.stripe_subscription_id
-      );
+      const esPrueba = (sub as any).tTipoSuscripcion?.es_prueba;
+      const nombrePlan = (sub as any).tTipoSuscripcion?.nombre;
+      const stripeSubId = sub.stripe_subscription_id;
 
-      const subscriptionItem = stripeSub.items.data[0];
+      if (esPrueba) {
+        // Cancelar inmediatamente en Stripe
+        await stripe.subscriptions.cancel(stripeSubId);
 
-    if (!subscriptionItem) {
-    return res.status(400).json({
-        message: "La suscripción no tiene items válidos"
-    });
-    }
+        // Marcar la suscripción de prueba como expirada
+        await supabase
+          .schema("usuario")
+          .from("tUsuarioSuscripcion")
+          .update({ estado: 'expirada', updated_at: new Date() })
+          .eq("id_suscripcion", sub.id_suscripcion);
 
-    await stripe.subscriptions.update(sub.stripe_subscription_id, {
-    items: [
-        {
-        id: subscriptionItem.id,
-        price: new_price_id
-        }
-    ],
-    proration_behavior: "create_prorations"
-    });
+        // Insertar plan Inicio
+        const { data: planInicio } = await supabase
+          .schema("usuario")
+          .from("tTipoSuscripcion")
+          .select("id_tipo_suscripcion")
+          .eq("nombre", "Inicio")
+          .single();
 
-      return res.json({ message: "Plan actualizado" });
+        await supabase
+          .schema("usuario")
+          .from("tUsuarioSuscripcion")
+          .insert({
+            id_usuario: user.id_usuario,
+            id_tipo_suscripcion: planInicio!.id_tipo_suscripcion,
+            fecha_inicio: new Date().toISOString(),
+            estado: 'activa',
+          });
 
-    } catch (error) {
-      return res.status(500).json({ message: "Error" });
-    }
-  }
+        return res.json({
+          message: "Prueba cancelada. Has vuelto al plan Inicio.",
+          plan_actual: "Inicio"
+        });
+      }
 
-  async cancel(req: Request, res: Response) {
-    try {
-      const user = (req as any).user;
-
-      const { data: sub } = await supabase
-        .schema("usuario")
-        .from("tUsuarioSuscripcion")
-        .select("stripe_subscription_id")
-        .eq("id_usuario", user.id_usuario)
-        .eq("estado", "activa")
-        .single();
-
-      if (!sub?.stripe_subscription_id)
-        return res.status(400).json({ message: "No plan de pago activo" });
-
-      await stripe.subscriptions.update(sub.stripe_subscription_id, {
+      // Plan de pago: cancelar al final del periodo
+      await stripe.subscriptions.update(stripeSubId, {
         cancel_at_period_end: true
       });
 
-      await supabase
+      const { data: resultData, error: cancelError } = await supabase
         .schema("usuario")
-        .rpc("cancelar_suscripcion", {
-          _id_usuario: user.id_usuario
-        });
+        .rpc("cancelar_suscripcion", { _id_usuario: user.id_usuario });
+
+      if (cancelError) throw cancelError;
+
+      // Accedemos a fecha_fin
+      const fecha = Array.isArray(resultData) ? resultData[0]?.fecha_fin : (resultData as any)?.fecha_fin;
 
       return res.json({
-        message: "Cancelada al finalizar periodo"
+        message: "Cancelada al finalizar periodo",
+        plan: nombrePlan,
+        acceso_hasta: fecha
       });
-
-    } catch (error) {
-      return res.status(500).json({ message: "Error" });
+    } catch (error: any) {
+      await logError(req, error, "Subscription", "cancel", "usuario", "lStripe");
+      return res.status(500).json({ message: error.message || "Error al cancelar" });
     }
   }
 }

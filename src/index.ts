@@ -6,7 +6,6 @@ import { webHookController } from "./controllers/webhookController";
 import morgan from "morgan";
 import cors from "cors";
 
-
 class Server {
     public app: Application;
 
