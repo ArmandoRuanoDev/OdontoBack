@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Stripe from "stripe";
 import supabase from "../database";
+import { logError } from "../util/logError";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia",
@@ -19,6 +20,7 @@ class WebhookController {
         process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err: any) {
+      await logError(req, err, 'WebhookController', 'handleStripeWebhook', 'usuario', 'lStripe');
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
@@ -68,7 +70,7 @@ class WebhookController {
 
         return res.json({ received: true });
       } catch (error: any) {
-        console.error("Error en payment_failed:", error);
+        await logError(req, error, 'WebhookController', 'handleStripeWebhook | payment_failed', 'usuario', 'lStripe')
         return res.status(500).json({ error: "Error interno" });
       }
     }
@@ -170,7 +172,7 @@ class WebhookController {
 
         return res.json({ received: true });
       } catch (error: any) {
-        console.error("Error en invoice.paid:", error);
+        await logError(req, error, 'WebhookController', 'handleStripeWebhook | invoice.paid', 'usuario', 'lStripe')
         return res.status(500).json({ error: "Error interno" });
       }
     }
@@ -207,6 +209,7 @@ class WebhookController {
 
         return res.json({ received: true });
       } catch (error: any) {
+        await logError(req, error, 'WebhookController', 'handleStripeWebhook | subscription.deleted', 'usuario', 'lStripe')
         console.error("Error en subscription.deleted:", error);
         return res.status(500).json({ error: "Error interno" });
       }
