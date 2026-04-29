@@ -408,6 +408,14 @@ class AuthController {
                 return res.status(500).json({ message: "Error al iniciar sesión" });
             }
 
+            res.cookie('refresh_token', refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production', // solo HTTPS en producción
+                sameSite: 'strict',
+                path: '/api/auth/refresh-token', // solo se envía en esta ruta
+                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+            });
+
             res.status(200).json({
                 message: "Inicio de sesión exitoso",
                 user: {
@@ -418,7 +426,6 @@ class AuthController {
                 },
                 tokens: {
                     access_token: accessToken,
-                    refresh_token: refreshToken,
                     expires_in: process.env.JWT_ACCESS_EXPIRES_IN
                 }
             });
@@ -598,6 +605,14 @@ class AuthController {
                 logError(req, err, 'AuthController', 'sendWelcomeEmail', 'usuario', 'lAcceso', user.id_usuario);
             });
 
+            res.cookie('refresh_token', refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                path: '/api/auth/refresh-token',
+                maxAge: 30 * 24 * 60 * 60 * 1000
+            });
+
             res.status(200).json({
                 message: "Correo verificado exitosamente",
                 user: {
@@ -608,7 +623,6 @@ class AuthController {
                 },
                 tokens: {
                     access_token: accessToken,
-                    refresh_token: refreshToken,
                     expires_in: process.env.JWT_ACCESS_EXPIRES_IN
                 }
             });
@@ -742,7 +756,7 @@ class AuthController {
 
             // Verificar expiración
             if (new Date(codigoReg.expira) < new Date()) {
-                return res.status(400).json({ message: "El código ha expirado. Solicita uno nuevo." });
+                return res.status(401).json({ message: "El código ha expirado. Solicita uno nuevo." });
             }
 
             // Marcar código como usado
@@ -759,7 +773,7 @@ class AuthController {
                     purpose: 'password_reset',
                     email: user.correo_electronico 
                 },
-                process.env.JWT_SECRET!,
+                process.env.JWT_ACCESS_SECRET!,
                 { expiresIn: '10m' }
             );
 
@@ -800,7 +814,7 @@ class AuthController {
             // Verificar token JWT
             let decoded: any;
             try {
-                decoded = jwt.verify(reset_token, process.env.JWT_SECRET!);
+                decoded = jwt.verify(reset_token, process.env.JWT_ACCESS_SECRET!);
             } catch (err) {
                 return res.status(401).json({ message: "Token inválido o expirado" });
             }
@@ -905,7 +919,7 @@ class AuthController {
      */
     public async refreshToken(req: Request, res: Response) {
         try {
-            const { refresh_token } = req.body;
+            const refresh_token = req.cookies?.refresh_token;
 
             if (!refresh_token) {
                 return res.status(400).json({ message: "Refresh token es requerido" });
@@ -1013,12 +1027,20 @@ class AuthController {
                 return res.status(500).json({ message: "Error al crear nueva sesión" });
             }
 
+            // Establecer la nueva cookie con el nuevo refresh token
+            res.cookie('refresh_token', newRefreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                path: '/api/auth/refresh-token',
+                maxAge: 30 * 24 * 60 * 60 * 1000
+            });
+
             // Responder con nuevos tokens
             res.status(200).json({
                 message: "Token refrescado exitosamente",
                 tokens: {
                     access_token: newAccessToken,
-                    refresh_token: newRefreshToken,
                     expires_in: process.env.JWT_ACCESS_EXPIRES_IN
                 }
             });

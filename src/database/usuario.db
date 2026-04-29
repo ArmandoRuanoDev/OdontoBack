@@ -38,6 +38,7 @@ CREATE TABLE usuario."tUsuario" (
     correo_verificado BOOLEAN DEFAULT FALSE,
     numero_telefono VARCHAR(15) NOT NULL,
     foto_perfil TEXT,
+    logo TEXT,
     fecha_nacimiento DATE,
     sexo_usuario CHAR(1) CHECK (sexo_usuario IN ('M','F','O')),
     contrasena_hash TEXT NOT NULL,

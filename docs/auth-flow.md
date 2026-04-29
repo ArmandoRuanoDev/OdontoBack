@@ -105,7 +105,6 @@ Respuesta Esperada (200):
   },
   "tokens": {
     "access_token": "...",
-    "refresh_token": "...",
     "expires_in": "15m"
   }
 }
@@ -139,7 +138,6 @@ Respuesta Esperada (200):
   },
   "tokens": {
     "access_token": "...",
-    "refresh_token": "...",
     "expires_in": "15m"
   }
 }
@@ -248,7 +246,6 @@ Respuesta Esperada (200):
   "message": "Token refrescado exitosamente",
   "tokens": {
     "access_token": "...",
-    "refresh_token": "...",
     "expires_in": "15m"
   }
 }

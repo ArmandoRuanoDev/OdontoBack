@@ -5,6 +5,7 @@ import PatientRoutes from "./routes/patientRoutes";
 import { webHookController } from "./controllers/webhookController";
 import morgan from "morgan";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 class Server {
     public app: Application;
@@ -32,6 +33,7 @@ class Server {
         );
         this.app.use(express.json());
         this.app.use(express.urlencoded({extended : false}));
+        this.app.use(cookieParser());
     }
 
     routes() : void {
