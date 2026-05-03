@@ -7,6 +7,29 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-04-22.dahlia",
 });
 
+function getPeriodEnd(stripeSub: any): number | null {
+  if (typeof stripeSub.current_period_end === 'number') {
+    return stripeSub.current_period_end;
+  }
+  const item = stripeSub.items?.data?.[0];
+  if (typeof item?.current_period_end === 'number') {
+    return item.current_period_end;
+  }
+  if (typeof item?.period?.end === 'number') {
+    return item.period.end;
+  }
+  return null;
+}
+
+function unixToIso(unix: number | null | undefined): string | null {
+  if (unix === null || unix === undefined) return null;
+  const n = Number(unix);
+  if (isNaN(n)) return null;
+  const date = new Date(n * 1000);
+  if (isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 class WebhookController {
 
   public async handleStripeWebhook(req: Request, res: Response) {
@@ -20,11 +43,11 @@ class WebhookController {
         process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err: any) {
-      await logError(req, err, 'WebhookController', 'handleStripeWebhook', 'usuario', 'lStripe');
+      await logError(req, err, 'WebhookController', 'constructEvent', 'usuario', 'lStripe');
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Verificar si el evento ya fue procesado anteriormente
+    // Idempotencia global: verificar si el evento ya fue procesado
     const { data: yaProcesado } = await supabase
       .schema("usuario")
       .from("tWebhookEvent")
@@ -40,51 +63,82 @@ class WebhookController {
     if (event.type === 'invoice.payment_failed') {
       try {
         const invoice = event.data.object;
-        const customerId = invoice.customer as string;
-        const subscriptionId = invoice.subscription as string;
+
+        const subscriptionId: string | null =
+          invoice.subscription ||
+          invoice.parent?.subscription_details?.subscription ||
+          invoice.lines?.data?.[0]?.parent?.subscription_item_details?.subscription ||
+          null;
+
+        if (!subscriptionId) {
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'No subscription, ignored' });
+        }
+
+        const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
+        const idUsuarioStripe = stripeSub.metadata?.id_usuario;
+
+        if (!idUsuarioStripe) {
+          await logError(req, new Error(`Suscripción sin metadata id_usuario: ${subscriptionId}`), 'WebhookController', 'payment_failed', 'usuario', 'lStripe');
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'No user metadata' });
+        }
+
+        const userId = parseInt(idUsuarioStripe, 10);
 
         const { data: usuario } = await supabase
           .schema("usuario")
           .from("tUsuario")
           .select("id_usuario")
-          .eq("stripe_customer_id", customerId)
-          .single();
+          .eq("id_usuario", userId)
+          .maybeSingle();
 
-        if (usuario) {
-          await supabase
-            .schema("usuario")
-            .from("tUsuarioSuscripcion")
-            .update({ estado: 'expirada', updated_at: new Date() })
-            .eq('stripe_subscription_id', subscriptionId);
-
-          await supabase
-            .schema("usuario")
-            .rpc("expirar_suscripciones_vencidas");
+        if (!usuario) {
+          await logError(req, new Error(`Usuario no encontrado: ${userId}`), 'WebhookController', 'payment_failed', 'usuario', 'lStripe');
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.status(404).json({ error: "Usuario no encontrado" });
         }
 
-        // Confirmar que se procesó correctamente
         await supabase
           .schema("usuario")
-          .from("tWebhookEvent")
-          .insert({ stripe_event_id: event.id });
+          .from("tUsuarioSuscripcion")
+          .update({ estado: 'expirada', updated_at: new Date() })
+          .eq('stripe_subscription_id', subscriptionId);
+
+        await supabase.schema("usuario").rpc("expirar_suscripciones_vencidas");
+        await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
 
         return res.json({ received: true });
       } catch (error: any) {
-        await logError(req, error, 'WebhookController', 'handleStripeWebhook | payment_failed', 'usuario', 'lStripe')
+        await logError(req, error, 'WebhookController', 'payment_failed', 'usuario', 'lStripe');
+        await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
         return res.status(500).json({ error: "Error interno" });
       }
     }
 
-    // Pago exitoso (conversión, renovación o cambio de plan)
+    // Pago exitoso
     if (event.type === 'invoice.paid') {
       try {
         const invoice = event.data.object;
-        const billingReason = invoice.billing_reason;
-        const subscriptionId = invoice.subscription as string;
-        const paymentIntentId = invoice.payment_intent as string;
-        const customerId = invoice.customer as string;
+        const billingReason: string = invoice.billing_reason ?? '';
+        
+        if (invoice.amount_paid === 0 && billingReason === 'subscription_create') {
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'Trial invoice ignored' });
+        }
 
-        // Evitar procesar la misma factura dos veces (capa extra)
+        const subscriptionId: string | null =
+          invoice.subscription ||
+          invoice.parent?.subscription_details?.subscription ||
+          invoice.lines?.data?.[0]?.parent?.subscription_item_details?.subscription ||
+          null;
+
+        if (!subscriptionId) {
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'No subscription, ignored' });
+        }
+
+        // Idempotencia por factura
         const { data: pagoExistente } = await supabase
           .schema("usuario")
           .from("tPago")
@@ -93,53 +147,79 @@ class WebhookController {
           .maybeSingle();
 
         if (pagoExistente) {
-          // Aun así, registramos el evento como procesado para no reintentarlo
-          await supabase
-            .schema("usuario")
-            .from("tWebhookEvent")
-            .insert({ stripe_event_id: event.id });
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
           return res.json({ received: true, message: "Ya procesado" });
         }
 
-        const { data: usuario, error: userError } = await supabase
-          .schema("usuario")
-          .from("tUsuario")
-          .select("id_usuario")
-          .eq("stripe_customer_id", customerId)
-          .single();
-
-        if (userError || !usuario) {
-          await supabase
-            .schema("usuario")
-            .from("tWebhookEvent")
-            .insert({ stripe_event_id: event.id });
-          return res.status(404).json({ error: "Usuario no encontrado" });
-        }
-
-        const { data: metodo } = await supabase
-          .schema("usuario")
-          .from("tMetodoPago")
-          .select("id_metodo")
-          .eq("id_usuario", usuario.id_usuario)
-          .eq("es_predeterminado", true)
-          .single();
-
+        // Obtener suscripción de Stripe con price expandido
         const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
           expand: ['items.data.price']
         }) as any;
 
-        const priceId = stripeSub.items.data[0]?.price.id;
-        const fechaFinStripe = new Date(stripeSub.current_period_end * 1000).toISOString();
+        const idUsuarioStripe: string | undefined = stripeSub.metadata?.id_usuario;
+        if (!idUsuarioStripe) {
+          await logError(req, new Error(`Suscripción sin metadata id_usuario: ${subscriptionId}`), 'WebhookController', 'invoice.paid', 'usuario', 'lStripe');
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'No user metadata' });
+        }
 
-        const { data: plan } = await supabase
+        const userId = parseInt(idUsuarioStripe, 10);
+
+        const { data: usuario } = await supabase
           .schema("usuario")
-          .from("tTipoSuscripcion")
-          .select("nombre")
-          .eq("stripe_price_id", priceId)
-          .single();
-          
+          .from("tUsuario")
+          .select("id_usuario")
+          .eq("id_usuario", userId)
+          .maybeSingle();
+
+        if (!usuario) {
+          await logError(req, new Error(`Usuario no encontrado: ${userId}`), 'WebhookController', 'invoice.paid', 'usuario', 'lStripe');
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.status(404).json({ error: "Usuario no encontrado" });
+        }
+
+        const priceId: string | undefined =
+          stripeSub.items?.data?.[0]?.price?.id ||
+          invoice.lines?.data?.[0]?.pricing?.price_details?.price ||
+          undefined;
+
+        if (!priceId) {
+          const err = new Error(`price.id no encontrado en suscripción: ${subscriptionId}`);
+          await logError(req, err, 'WebhookController', 'invoice.paid | priceId', 'usuario', 'lStripe');
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.status(500).json({ error: "Price no encontrado" });
+        }
+
+        const periodEndUnix: number | null =
+          getPeriodEnd(stripeSub) ??
+          invoice.lines?.data?.[0]?.period?.end ??
+          null;
+
+        // Conversión segura a ISO — si es null, la función SQL usa duracion_dias como fallback
+        const fechaFinStripe: string | null = unixToIso(periodEndUnix);
+
+        if (!fechaFinStripe) {
+          console.warn(`No se pudo determinar fecha_fin para sub ${subscriptionId}. SQL usará duracion_dias.`);
+        }
+
+        // Extraer payment_intent_id (puede ser null en conversiones trial→pago)
+        const paymentIntentId: string | null =
+          invoice.payment_intent ||
+          invoice.payment?.payment_intent ||
+          null;
+
+        // Método de pago predeterminado del usuario
+        const { data: metodo } = await supabase
+          .schema("usuario")
+          .from("tMetodoPago")
+          .select("id_metodo")
+          .eq("id_usuario", userId)
+          .eq("es_predeterminado", true)
+          .maybeSingle();
+
+        // Renovación automática (siguiente ciclo de facturación)
         if (billingReason === 'subscription_cycle') {
-          await supabase
+          const { error: renovarError } = await supabase
             .schema("usuario")
             .rpc("renovar_suscripcion", {
               _stripe_subscription_id: subscriptionId,
@@ -147,81 +227,101 @@ class WebhookController {
               _stripe_payment_intent_id: paymentIntentId,
               _stripe_invoice_id: invoice.id
             });
-        } else {
-          // subscription_create (primer cobro, fin de trial) o
-          // subscription_update (cambio de plan con prorrateo)
-          await supabase
-            .schema("usuario")
-            .rpc("convertir_a_plan_pago", {
-              _id_usuario: usuario.id_usuario,
-              _nombre_plan: plan!.nombre,
-              _stripe_subscription_id: subscriptionId,
-              _stripe_payment_intent_id: paymentIntentId,
-              _stripe_invoice_id: invoice.id,
-              _monto: invoice.amount_paid / 100,
-              _id_metodo_pago: metodo?.id_metodo || null,
-              _fecha_fin: fechaFinStripe
-            });
+
+          if (renovarError) {
+            await logError(req, renovarError, 'WebhookController', 'renovar_suscripcion', 'usuario', 'lStripe');
+            throw new Error(`Error al renovar: ${renovarError.message}`);
+          }
+
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true });
         }
 
-        // Confirmar evento procesado
-        await supabase
+        const { data: plan, error: planError } = await supabase
           .schema("usuario")
-          .from("tWebhookEvent")
-          .insert({ stripe_event_id: event.id });
+          .from("tTipoSuscripcion")
+          .select("nombre")
+          .eq("stripe_price_id", priceId)
+          .maybeSingle();
 
+        if (planError || !plan) {
+          const err = new Error(`Plan no encontrado para stripe_price_id: ${priceId}`);
+          await logError(req, err, 'WebhookController', 'invoice.paid | plan lookup', 'usuario', 'lStripe');
+          return res.status(500).json({ error: "Plan no encontrado" });
+        }
+
+        const { error: convertirError } = await supabase
+          .schema("usuario")
+          .rpc("convertir_a_plan_pago", {
+            _id_usuario: userId,
+            _nombre_plan: plan.nombre,
+            _stripe_subscription_id: subscriptionId,
+            _stripe_payment_intent_id: paymentIntentId,
+            _stripe_invoice_id: invoice.id,
+            _monto: invoice.amount_paid / 100,
+            _id_metodo_pago: metodo?.id_metodo ?? null,
+            _fecha_fin: fechaFinStripe   // null si no se pudo determinar → SQL usa duracion_dias
+          });
+
+        if (convertirError) {
+          await logError(req, convertirError, 'WebhookController', 'convertir_a_plan_pago', 'usuario', 'lStripe');
+          throw new Error(`Error al convertir: ${convertirError.message}`);
+        }
+
+        await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
         return res.json({ received: true });
+
       } catch (error: any) {
-        await logError(req, error, 'WebhookController', 'handleStripeWebhook | invoice.paid', 'usuario', 'lStripe')
+        await logError(req, error, 'WebhookController', 'invoice.paid', 'usuario', 'lStripe');
+        // No registramos para que Stripe pueda reintentar errores inesperados
         return res.status(500).json({ error: "Error interno" });
       }
     }
 
-    // Suscripción cancelada
+    // Suscripción eliminada
     if (event.type === 'customer.subscription.deleted') {
       try {
         const subscription = event.data.object;
-        const customerId = subscription.customer as string;
+        const subscriptionId: string = subscription.id;
+        const idUsuarioStripe: string | undefined = subscription.metadata?.id_usuario;
+
+        if (!idUsuarioStripe) {
+          await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+          return res.json({ received: true, message: 'No user metadata' });
+        }
+
+        const userId = parseInt(idUsuarioStripe, 10);
 
         const { data: usuario } = await supabase
           .schema("usuario")
           .from("tUsuario")
           .select("id_usuario")
-          .eq("stripe_customer_id", customerId)
-          .single();
+          .eq("id_usuario", userId)
+          .maybeSingle();
 
         if (usuario) {
           await supabase
             .schema("usuario")
             .from("tUsuarioSuscripcion")
             .update({ estado: 'expirada', updated_at: new Date() })
-            .eq('stripe_subscription_id', subscription.id);
+            .eq('stripe_subscription_id', subscriptionId);
 
-          await supabase
-            .schema("usuario")
-            .rpc("expirar_suscripciones_vencidas");
+          await supabase.schema("usuario").rpc("expirar_suscripciones_vencidas");
         }
 
-        await supabase
-          .schema("usuario")
-          .from("tWebhookEvent")
-          .insert({ stripe_event_id: event.id });
-
+        await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
         return res.json({ received: true });
+
       } catch (error: any) {
-        await logError(req, error, 'WebhookController', 'handleStripeWebhook | subscription.deleted', 'usuario', 'lStripe')
-        console.error("Error en subscription.deleted:", error);
+        await logError(req, error, 'WebhookController', 'subscription.deleted', 'usuario', 'lStripe');
+        await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
         return res.status(500).json({ error: "Error interno" });
       }
     }
 
-    // Eventos no manejados: Los registramos como procesados
-    await supabase
-      .schema("usuario")
-      .from("tWebhookEvent")
-      .insert({ stripe_event_id: event.id });
-
-    res.json({ received: true });
+    // Eventos no manejados
+    await supabase.schema("usuario").from("tWebhookEvent").insert({ stripe_event_id: event.id });
+    return res.json({ received: true });
   }
 }
 

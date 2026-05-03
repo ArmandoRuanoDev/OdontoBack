@@ -189,7 +189,7 @@ CREATE INDEX idx_metodo_pago_usuario ON usuario."tMetodoPago" (id_usuario);
 CREATE INDEX idx_suscripcion_usuario ON usuario."tUsuarioSuscripcion" (id_usuario);
 CREATE INDEX idx_suscripcion_fecha_fin ON usuario."tUsuarioSuscripcion" (fecha_fin) WHERE estado = 'activa';
 CREATE INDEX idx_suscripcion_stripe ON usuario."tUsuarioSuscripcion" (stripe_subscription_id);
- 
+
 -- Pagos
 CREATE INDEX idx_pago_suscripcion ON usuario."tPago" (id_suscripcion);
 CREATE INDEX idx_pago_stripe_pi ON usuario."tPago" (stripe_payment_intent_id);
@@ -411,7 +411,7 @@ CREATE OR REPLACE FUNCTION usuario.convertir_a_plan_pago(
     _id_usuario INT,
     _nombre_plan VARCHAR,
     _stripe_subscription_id VARCHAR,
-    _stripe_payment_intent_id VARCHAR,
+    _stripe_payment_intent_id VARCHAR,   -- puede ser NULL en conversiones trial/pago
     _stripe_invoice_id VARCHAR,
     _monto DECIMAL,
     _id_metodo_pago INT,
@@ -419,90 +419,113 @@ CREATE OR REPLACE FUNCTION usuario.convertir_a_plan_pago(
 )
 RETURNS JSON AS $$
 DECLARE
-    fecha_ahora TIMESTAMP := NOW();
-    id_plan INT;
-    duracion INT;
-    venia_de_prueba BOOLEAN := FALSE;
+    fecha_ahora         TIMESTAMP := NOW();
+    id_plan             INT;
+    duracion            INT;
+    venia_de_prueba     BOOLEAN := FALSE;
     suscripcion_existente RECORD;
-    nueva_suscripcion INT;
+    nueva_suscripcion   INT;
     fecha_fin_calculada TIMESTAMP;
 BEGIN
+    -- Obtener el plan destino
     SELECT id_tipo_suscripcion, duracion_dias
     INTO id_plan, duracion
     FROM usuario."tTipoSuscripcion"
     WHERE nombre = _nombre_plan AND activo = TRUE;
-
+ 
     IF id_plan IS NULL THEN
         RAISE EXCEPTION 'Plan no encontrado: %', _nombre_plan;
     END IF;
-
-    -- Priorizar la fecha de Stripe; solo calcular si no se proporcionó
+ 
+    -- Fecha de fin: priorizar la que viene de Stripe
     fecha_fin_calculada := CASE
         WHEN _fecha_fin IS NOT NULL THEN _fecha_fin
-        WHEN duracion IS NOT NULL THEN fecha_ahora + (duracion || ' days')::INTERVAL
+        WHEN duracion IS NOT NULL   THEN fecha_ahora + (duracion || ' days')::INTERVAL
         ELSE NULL
     END;
-
-    SELECT us.id_suscripcion, us.id_tipo_suscripcion, ts.es_prueba
+ 
+    -- Buscar la suscripción por stripe_subscription_id (cubre trial y pago nuevo)
+    -- NOTA: no filtramos por estado para cubrir el caso donde ya está 'activa'
+    --       con el mismo subscription_id (conversión trial/pago en Stripe).
+    SELECT us.id_suscripcion, us.id_tipo_suscripcion, us.estado, ts.es_prueba
     INTO suscripcion_existente
     FROM usuario."tUsuarioSuscripcion" us
     JOIN usuario."tTipoSuscripcion" ts ON ts.id_tipo_suscripcion = us.id_tipo_suscripcion
     WHERE us.stripe_subscription_id = _stripe_subscription_id
+    LIMIT 1
     FOR UPDATE;
-
+ 
     IF suscripcion_existente.id_suscripcion IS NOT NULL THEN
-        venia_de_prueba := suscripcion_existente.es_prueba;
-
+        -- ── Caso A: ya existe una suscripción con este stripe_subscription_id ──
+        -- Puede ser la prueba (es_prueba=true) que Stripe convirtió al plan de pago,
+        -- o una suscripción de pago que se está actualizando.
+        venia_de_prueba := COALESCE(suscripcion_existente.es_prueba, FALSE);
+ 
+        -- Actualizamos en-place. El unique index idx_usuario_suscripcion_activa
+        -- es parcial (WHERE estado = 'activa'). Como la fila ya tiene estado='activa'
+        -- y solo cambiamos otros campos (no id_usuario), NO hay conflicto de índice.
         UPDATE usuario."tUsuarioSuscripcion"
-        SET id_tipo_suscripcion = id_plan,
-            fecha_inicio = fecha_ahora,
-            fecha_fin = fecha_fin_calculada,
-            estado = 'activa',
+        SET id_tipo_suscripcion     = id_plan,
+            fecha_inicio            = fecha_ahora,
+            fecha_fin               = fecha_fin_calculada,
+            estado                  = 'activa',
             convertida_desde_prueba = venia_de_prueba,
-            updated_at = fecha_ahora
+            cancelar_al_vencer      = FALSE,
+            updated_at              = fecha_ahora
         WHERE id_suscripcion = suscripcion_existente.id_suscripcion
         RETURNING id_suscripcion INTO nueva_suscripcion;
+ 
     ELSE
+        -- ── Caso B: no existe suscripción con ese stripe_subscription_id ──
+        -- Expirar cualquier suscripción activa del usuario e insertar la nueva.
+ 
         UPDATE usuario."tUsuarioSuscripcion"
         SET estado = 'expirada', updated_at = fecha_ahora
         WHERE id_usuario = _id_usuario AND estado = 'activa';
-
+ 
         INSERT INTO usuario."tUsuarioSuscripcion" (
             id_usuario, id_tipo_suscripcion,
             fecha_inicio, fecha_fin, estado,
             stripe_subscription_id,
-            convertida_desde_prueba
+            convertida_desde_prueba,
+            cancelar_al_vencer
         ) VALUES (
             _id_usuario, id_plan,
-            fecha_ahora,
-            fecha_fin_calculada,
-            'activa',
+            fecha_ahora, fecha_fin_calculada, 'activa',
             _stripe_subscription_id,
+            FALSE,
             FALSE
         )
         RETURNING id_suscripcion INTO nueva_suscripcion;
     END IF;
-
+ 
+    -- Registrar el pago (idempotente: solo si no existe ya para este invoice)
     INSERT INTO usuario."tPago" (
         id_suscripcion, id_tipo_suscripcion, id_metodo_pago,
         monto, moneda, metodo_pago,
         stripe_payment_intent_id, stripe_invoice_id,
         estado_pago
     )
-    SELECT nueva_suscripcion, id_plan, _id_metodo_pago,
-           _monto, 'MXN', 'card',
-           _stripe_payment_intent_id, _stripe_invoice_id,
-           'exitoso'
+    SELECT
+        nueva_suscripcion,
+        id_plan,
+        _id_metodo_pago,
+        _monto,
+        'MXN',
+        'card',
+        _stripe_payment_intent_id,   -- puede ser NULL, la columna lo permite
+        _stripe_invoice_id,
+        'exitoso'
     WHERE NOT EXISTS (
         SELECT 1 FROM usuario."tPago"
         WHERE stripe_invoice_id = _stripe_invoice_id
     );
-
+ 
     RETURN json_build_object(
-        'ok', TRUE,
+        'ok',             TRUE,
         'id_suscripcion', nueva_suscripcion,
-        'plan', _nombre_plan,
-        'desde_prueba', venia_de_prueba
+        'plan',           _nombre_plan,
+        'desde_prueba',   venia_de_prueba
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -669,6 +692,27 @@ SELECT cron.schedule(
     '0 3 * * *', -- Programación: a las 3:00 AM (UTC) todos los días
     'SELECT usuario.expirar_suscripciones_vencidas();' -- La instrucción SQL
 );
+
+
+-- Bucket para guardar imagenes
+-- Crear el bucket si no existe
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('clinica-imagenes', 'clinica-imagenes', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Permitir a los usuarios autenticados subir archivos
+CREATE POLICY "Usuarios autenticados pueden subir logos"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'clinica-imagenes');
+
+-- Permitir lectura pública de todo el bucket
+CREATE POLICY "Acceso público de lectura a logos"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'clinica-imagenes');
 
 
 -- Permisos de acceso

@@ -1,5 +1,8 @@
 CREATE SCHEMA IF NOT EXISTS clinica;
 
+-- Habilitar extensión requerida para la restricción de exclusión
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 CREATE TABLE clinica."tPaciente" (
     id_paciente INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_doctor INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE RESTRICT,
@@ -110,7 +113,7 @@ CREATE TABLE clinica."tTratamiento" (
     id_tratamiento INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_doctor INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
     
-    codigo VARCHAR(20),          -- Código interno o de nomenclatura dental
+    codigo VARCHAR(100),          -- Código interno o de nomenclatura dental
     nombre VARCHAR(100) NOT NULL,
     descripcion TEXT,
     costo_sugerido DECIMAL(10,2),
@@ -125,7 +128,8 @@ CREATE TABLE clinica."tCita" (
     id_cita INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_paciente INT NOT NULL REFERENCES clinica."tPaciente"(id_paciente) ON DELETE CASCADE,
     id_doctor INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
-    
+    id_tratamiento INT REFERENCES clinica."tTratamiento"(id_tratamiento) ON DELETE SET NULL,
+
     fecha_hora_inicio TIMESTAMP NOT NULL,
     fecha_hora_fin TIMESTAMP NOT NULL,
     
@@ -205,6 +209,30 @@ CREATE TABLE clinica."tDocumentoPaciente" (
     fecha_subida TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE clinica."tHorarioDoctor" (
+    id_horario INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_doctor INT NOT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE CASCADE,
+    dia_semana SMALLINT NOT NULL CHECK (dia_semana BETWEEN 0 AND 6),
+    hora_inicio TIME NOT NULL,
+    hora_fin TIME NOT NULL,
+    margen_fin_minutos INT NOT NULL DEFAULT 0,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    CONSTRAINT ck_hora_fin_mayor_inicio CHECK (hora_fin > hora_inicio),
+    -- Restricción de no solapamiento para el mismo doctor y día
+    CONSTRAINT excl_bloques_doctor EXCLUDE USING GIST (
+        id_doctor WITH =,
+        dia_semana WITH =,
+        tsrange(
+            (DATE '2000-01-01' + hora_inicio),
+            (DATE '2000-01-01' + hora_fin),
+            '[)'
+        ) WITH &&
+    )
+);
+
+COMMENT ON COLUMN clinica."tHorarioDoctor".margen_fin_minutos IS 'Minutos de buffer al final del bloque (ej. 30 para no agendar a menos de 30 min del cierre)';
+
+
 CREATE TABLE clinica."lClinica" (
     id_log_clinica INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_usuario INT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE SET NULL,
@@ -216,6 +244,20 @@ CREATE TABLE clinica."lClinica" (
     user_agent TEXT,
     fecha_error_log TIMESTAMP DEFAULT NOW()
 );
+
+
+CREATE TABLE clinica."lDoctor" (
+    id_log_doctor INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario INT NULL REFERENCES usuario."tUsuario"(id_usuario) ON DELETE SET NULL,
+    mensaje_error VARCHAR(500),
+    detalle_error TEXT,
+    clase VARCHAR(100),
+    metodo VARCHAR(100),
+    ip_address INET,
+    user_agent TEXT,
+    fecha_error_log TIMESTAMP DEFAULT NOW()
+);
+
 
 -- Índices para búsquedas frecuentes
 CREATE INDEX idx_paciente_doctor ON clinica."tPaciente" (id_doctor);
@@ -241,6 +283,8 @@ CREATE INDEX idx_odontograma_paciente ON clinica."tOdontograma" (id_paciente);
 CREATE INDEX idx_log_fecha ON clinica."lClinica" (fecha_error_log);
 CREATE INDEX idx_log_usuario ON clinica."lClinica" (id_usuario);
 CREATE INDEX idx_log_ip ON clinica."lClinica" (ip_address);
+
+CREATE INDEX idx_horario_doctor_dia ON clinica."tHorarioDoctor" (id_doctor, dia_semana);
 
 -- Funciones
 CREATE OR REPLACE FUNCTION clinica.crear_paciente(
@@ -295,6 +339,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
 CREATE OR REPLACE FUNCTION clinica.obtener_expediente(_id_paciente INT)
 RETURNS JSON AS $$
 DECLARE
@@ -318,6 +363,135 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+
+CREATE OR REPLACE FUNCTION clinica.validar_cita_horario()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_duracion INT;
+    v_inicio TIME;
+    v_fin TIME;
+    v_dia SMALLINT;
+    v_valido BOOLEAN;
+BEGIN
+    -- Obtener duración del tratamiento si está asociado, si no usar intervalo de la cita
+    IF NEW.id_tratamiento IS NOT NULL THEN
+        SELECT duracion_minutos INTO v_duracion
+        FROM clinica."tTratamiento"
+        WHERE id_tratamiento = NEW.id_tratamiento
+          AND id_doctor = NEW.id_doctor;
+        IF v_duracion IS NULL THEN
+            v_duracion := EXTRACT(EPOCH FROM (NEW.fecha_hora_fin - NEW.fecha_hora_inicio)) / 60;
+        END IF;
+    ELSE
+        v_duracion := EXTRACT(EPOCH FROM (NEW.fecha_hora_fin - NEW.fecha_hora_inicio)) / 60;
+    END IF;
+
+    v_inicio := NEW.fecha_hora_inicio::TIME;
+    v_fin := NEW.fecha_hora_fin::TIME;
+    v_dia := EXTRACT(DOW FROM NEW.fecha_hora_inicio); -- 0=Dom..6=Sáb
+
+    -- 1. Verificar que la cita caiga dentro de un bloque laboral (respetando margen de fin)
+    SELECT TRUE INTO v_valido
+    FROM clinica."tHorarioDoctor"
+    WHERE id_doctor = NEW.id_doctor
+      AND dia_semana = v_dia
+      AND activo = TRUE
+      AND hora_inicio <= v_inicio
+      AND (hora_fin - (margen_fin_minutos || ' minutes')::INTERVAL) >= v_fin
+    LIMIT 1;
+
+    IF v_valido IS NULL THEN
+        RAISE EXCEPTION 'La cita está fuera del horario laboral del doctor o no respeta el margen.';
+    END IF;
+
+    -- 2. Verificar que el doctor no tenga otra cita activa que se solape
+    IF EXISTS (
+        SELECT 1
+        FROM clinica."tCita"
+        WHERE id_doctor = NEW.id_doctor
+          AND id_cita IS DISTINCT FROM NEW.id_cita
+          AND estado IN ('programada', 'confirmada', 'en_curso')   -- Solo estas bloquean disponibilidad
+          AND tsrange(fecha_hora_inicio, fecha_hora_fin, '[)') &&
+              tsrange(NEW.fecha_hora_inicio, NEW.fecha_hora_fin, '[)')
+    ) THEN
+        RAISE EXCEPTION 'El doctor ya tiene una cita en ese horario.';
+    END IF;
+
+    -- Verificar que el paciente no tenga otra cita activa al mismo tiempo.
+    IF EXISTS (
+        SELECT 1
+        FROM clinica."tCita"
+        WHERE id_paciente = NEW.id_paciente
+          AND id_cita IS DISTINCT FROM NEW.id_cita
+          AND estado IN ('programada', 'confirmada', 'en_curso')
+          AND tsrange(fecha_hora_inicio, fecha_hora_fin, '[)') &&
+              tsrange(NEW.fecha_hora_inicio, NEW.fecha_hora_fin, '[)')
+    ) THEN
+        RAISE EXCEPTION 'El paciente ya tiene otra cita en ese horario.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION clinica.horarios_libres(
+    _id_doctor INT,
+    _fecha DATE,
+    _duracion_minutos INT
+)
+RETURNS TABLE (inicio TIME, fin TIME) AS $$
+BEGIN
+    RETURN QUERY
+    WITH bloques AS (
+        SELECT hora_inicio, (hora_fin - (margen_fin_minutos || ' minutes')::INTERVAL)::TIME AS hora_fin
+        FROM clinica."tHorarioDoctor"
+        WHERE id_doctor = _id_doctor
+          AND dia_semana = EXTRACT(DOW FROM _fecha)
+          AND activo = TRUE
+    ),
+    citas_ordenadas AS (
+        SELECT fecha_hora_inicio::TIME AS ini, fecha_hora_fin::TIME AS fin
+        FROM clinica."tCita"
+        WHERE id_doctor = _id_doctor
+          AND fecha_hora_inicio::DATE = _fecha
+          AND estado NOT IN ('cancelada', 'no_asistio')
+        ORDER BY ini
+    ),
+    huecos AS (
+        SELECT b.hora_inicio AS hueco_inicio,
+               COALESCE(
+                   (SELECT c.ini
+                    FROM citas_ordenadas c
+                    WHERE c.ini >= b.hora_inicio AND c.ini < b.hora_fin
+                    ORDER BY c.ini LIMIT 1),
+                   b.hora_fin
+               ) AS hueco_fin
+        FROM bloques b
+        UNION ALL
+        SELECT c.fin AS hueco_inicio,
+               COALESCE(
+                   (SELECT c2.ini
+                    FROM citas_ordenadas c2
+                    WHERE c2.ini > c.fin AND c2.ini <= b.hora_fin
+                    ORDER BY c2.ini LIMIT 1),
+                   b.hora_fin
+               ) AS hueco_fin
+        FROM bloques b
+        JOIN citas_ordenadas c ON c.ini >= b.hora_inicio AND c.ini < b.hora_fin
+    )
+    SELECT hueco_inicio, hueco_fin
+    FROM huecos
+    WHERE hueco_fin - hueco_inicio >= (_duracion_minutos || ' minutes')::INTERVAL
+    ORDER BY hueco_inicio;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+
+-- Triggers
+CREATE TRIGGER trg_validar_cita
+BEFORE INSERT OR UPDATE ON clinica."tCita"
+FOR EACH ROW EXECUTE FUNCTION clinica.validar_cita_horario();
 
 -- Permisos
 GRANT USAGE ON SCHEMA clinica TO anon, authenticated, service_role;

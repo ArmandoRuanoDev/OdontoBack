@@ -153,13 +153,13 @@ class SubscriptionController {
       const { data: subActiva } = await supabase
         .schema("usuario")
         .from("tUsuarioSuscripcion")
-        .select("stripe_subscription_id")
+        .select("stripe_subscription_id, tTipoSuscripcion!inner(es_prueba)")
         .eq("id_usuario", user.id_usuario)
         .eq("estado", "activa")
         .not("stripe_subscription_id", "is", null)
         .maybeSingle();
 
-      if (subActiva?.stripe_subscription_id) {
+      if (subActiva && !(subActiva as any).tTipoSuscripcion?.es_prueba) {
         return res.status(400).json({
           message: "Ya tienes un plan de pago activo. Usa /change-plan para actualizarlo.",
         });
